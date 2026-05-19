@@ -508,7 +508,7 @@ export class MaskEngine {
   }
 
   private isTitleClipParent(title: HTMLElement, parent: HTMLElement): boolean {
-    if (title.dataset.gptlmTextWrapper !== 'true') return false;
+    if (title.dataset.chatveilTextWrapper !== 'true') return false;
     if (parent.querySelector('button, [role="button"], img, svg, canvas, picture, video, [role="img"]')) return false;
     const className = typeof parent.className === 'string' ? parent.className : '';
     return /\b(flex-?1|min-w-0|w-full|truncate|text-ellipsis|line-clamp|overflow-hidden)\b/i.test(className);

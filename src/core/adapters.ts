@@ -270,7 +270,7 @@ function ensureTextOnlyElement(row: HTMLElement, forceWrapper = false): HTMLElem
   }
 
   const wrapper = row.ownerDocument.createElement('span');
-  wrapper.dataset.gptlmTextWrapper = 'true';
+  wrapper.dataset.chatveilTextWrapper = 'true';
   textNode.parentNode.insertBefore(wrapper, textNode);
   wrapper.append(textNode);
   return wrapper;

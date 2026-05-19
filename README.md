@@ -1,6 +1,6 @@
-# GPT List Mask
+# ChatVeil
 
-GPT List Mask is a local-only privacy tool for chatbot sidebars. It masks non-current conversation titles by default, keeps the current conversation visible, reveals masked titles while hovered or keyboard-focused, and lets users pin individual titles visible with a triple-click.
+ChatVeil is a local-only privacy tool for chatbot sidebars. It masks non-current conversation titles by default, keeps the current conversation visible, reveals masked titles while hovered or keyboard-focused, and lets users pin individual titles visible from chat menus or with a triple-click.
 
 The project ships the same TypeScript masking core in two forms:
 
@@ -12,6 +12,7 @@ The project ships the same TypeScript masking core in two forms:
 - Masks chat history titles without rewriting the original page text.
 - Reveals a title temporarily on hover or focus.
 - Keeps the active conversation title readable.
+- Adds a lightweight menu action to keep individual titles unmasked.
 - Stores per-title unlocks as hashed keys instead of raw titles.
 - Supports a default skeleton mask, a character mask, and a blur mode.
 - Lets users enable unknown chatbot sites one origin at a time from the popup.
@@ -23,12 +24,14 @@ First-class adapters are included for:
 - ChatGPT: `chatgpt.com`
 - Claude: `claude.ai`
 - Qwen: `qwen.ai` and `chat.qwen.ai`
+- DeepSeek: `chat.deepseek.com`
+- MiniMax/Hailuo: `minimax.io`, `agent.minimax.com`, and `agent.minimaxi.com`
 
-The generic adapter also supports known chatbot hosts such as Z.ai, Xiaomi XiaoAI/MiMo, MiniMax/Hailuo, DeepSeek, Kimi, Doubao, Tencent Yuanbao, ChatGLM, Tongyi, ERNIE/Yiyan, Gemini, Copilot, Perplexity, Poe, Mistral, and Grok. Other chatbot sites can be enabled manually from the extension popup with a single-origin permission request.
+The generic adapter also supports known chatbot hosts such as Kimi, Doubao, Tencent Yuanbao, Tongyi, ERNIE/Yiyan, Gemini, Copilot, Perplexity, Poe, Mistral, and Grok. Other chatbot sites can be enabled manually from the extension popup with a single-origin permission request.
 
 ## Privacy Model
 
-GPT List Mask is designed to stay on the page and in the browser:
+ChatVeil is designed to stay on the page and in the browser:
 
 - No network calls.
 - No telemetry.
@@ -37,7 +40,7 @@ GPT List Mask is designed to stay on the page and in the browser:
 - No raw conversation-title storage.
 - No destructive text replacement.
 
-The content script adds namespaced `data-gptlm-*` attributes and CSS overlays to mask titles visually. Settings, custom hosts, temporary show-all state, and hashed unlock keys are stored through browser storage or userscript storage.
+The content script adds namespaced `data-chatveil-*` attributes and CSS overlays to mask titles visually. Settings, custom hosts, temporary show-all state, and hashed unlock keys are stored through browser storage or userscript storage.
 
 ## Project Layout
 
@@ -74,7 +77,7 @@ npm run build:userscript
 
 - Extension zip: `.output/*-chrome.zip`
 - Unpacked extension: `.output/chrome-mv3/`
-- Userscript: `dist/userscript/gpt-list-mask.user.js`
+- Userscript: `dist/userscript/chatveil.user.js`
 
 Build artifacts are generated locally and ignored by git.
 
@@ -88,7 +91,7 @@ Build artifacts are generated locally and ignored by git.
 6. Triple-click a masked title and confirm it stays visible after refresh.
 7. Open the popup, disable and re-enable the current site, use `Show All 10m`, reset unlocks, and switch mask styles.
 8. For a custom chatbot site, enable it from the popup and confirm the optional single-origin permission request appears.
-9. Run `npm run build:userscript`, install `dist/userscript/gpt-list-mask.user.js` in Tampermonkey, and repeat the known-site checks.
+9. Run `npm run build:userscript`, install `dist/userscript/chatveil.user.js` in Tampermonkey, and repeat the known-site checks.
 
 ## License
 

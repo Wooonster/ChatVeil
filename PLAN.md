@@ -1,4 +1,4 @@
-# GPT List Mask Plan
+# ChatVeil Plan
 
 ## English
 

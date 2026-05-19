@@ -1,8 +1,8 @@
 import type { MaskSettings } from './types';
 
-export const SETTINGS_KEY = 'gptListMaskSettings';
-export const DATA_PREFIX = 'gptlm';
-export const STYLE_ID = 'gptlm-mask-style';
+export const SETTINGS_KEY = 'chatVeilSettings';
+export const DATA_PREFIX = 'chatveil';
+export const STYLE_ID = 'chatveil-mask-style';
 export const MAX_CUSTOM_MASK_LENGTH = 120;
 
 export const KNOWN_HOSTS = [
@@ -48,5 +48,5 @@ export const CONTENT_SCRIPT_MATCHES = Array.from(
   new Set(KNOWN_HOSTS.flatMap((host) => [`https://${host}/*`, `https://*.${host}/*`])),
 );
 
-export const MESSAGE_REFRESH = 'gpt-list-mask:refresh';
-export const MESSAGE_INJECT_CUSTOM_SITE = 'gpt-list-mask:inject-custom-site';
+export const MESSAGE_REFRESH = 'chatveil:refresh';
+export const MESSAGE_INJECT_CUSTOM_SITE = 'chatveil:inject-custom-site';

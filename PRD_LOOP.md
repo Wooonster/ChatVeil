@@ -1,4 +1,4 @@
-# GPT List Mask Ralph Loop
+# ChatVeil Ralph Loop
 
 This file tracks small implementation PRDs derived from `PLAN.md`. A PRD is marked done only after its files exist and the relevant verification passes.
 
@@ -10,7 +10,7 @@ Deliverables:
 
 - TypeScript project scaffold with WXT extension build and Vite userscript build.
 - Shared masking core under `src/core`.
-- No text rewriting; masking uses `data-gptlm-*` attributes and CSS.
+- No text rewriting; masking uses `data-chatveil-*` attributes and CSS.
 
 Evidence:
 
@@ -107,6 +107,6 @@ Evidence:
 - `npm run test`: passed, 4 test files and 10 tests.
 - `npm run typecheck`: passed.
 - `npm run test:smoke`: passed, browser-level masking, current-title, hover reveal, and character-mode smoke.
-- `npm run build:extension`: passed, produced `.output/chrome-mv3/` and `.output/gpt-list-mask-0.1.0-chrome.zip`.
-- `npm run build:userscript`: passed, produced `dist/userscript/gpt-list-mask.user.js`.
+- `npm run build:extension`: passed, produced `.output/chrome-mv3/` and `.output/chatveil-0.1.0-chrome.zip`.
+- `npm run build:userscript`: passed, produced `dist/userscript/chatveil.user.js`.
 - Packaged MV3 manifest inspected at `.output/chrome-mv3/manifest.json`.

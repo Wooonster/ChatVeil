@@ -9,7 +9,7 @@ import {
 } from '../core/settings';
 import type { MaskSettings, SettingsStorage } from '../core/types';
 
-const PANEL_ID = 'gptlm-userscript-panel';
+const PANEL_ID = 'chatveil-userscript-panel';
 
 function escapeAttribute(value: string): string {
   return value
@@ -82,7 +82,7 @@ function renderPanel(settings: MaskSettings): HTMLElement {
         }
       }
     </style>
-    <strong>GPT List Mask</strong>
+    <strong>ChatVeil</strong>
     <label>Enabled <input name="enabled" type="checkbox" ${site.enabled ? 'checked' : ''}></label>
     <label>
       Style
@@ -159,7 +159,7 @@ async function showPanel(): Promise<void> {
   });
 }
 
-GM_registerMenuCommand('Open GPT List Mask controls', () => {
+GM_registerMenuCommand('Open ChatVeil controls', () => {
   void showPanel();
 });
 

@@ -1,11 +1,11 @@
 import { defineConfig } from 'vite';
 
 const userscriptHeader = `// ==UserScript==
-// @name         GPT List Mask
-// @namespace    https://github.com/local/gpt-list-mask
+// @name         ChatVeil
+// @namespace    https://github.com/local/chatveil
 // @version      0.1.0
 // @description  Mask non-current chatbot conversation titles with hover reveal and per-title unlocks.
-// @author       GPT List Mask contributors
+// @author       ChatVeil contributors
 // @match        https://chatgpt.com/*
 // @match        https://*.chatgpt.com/*
 // @match        https://claude.ai/*
@@ -54,9 +54,9 @@ export default defineConfig({
     minify: false,
     lib: {
       entry: 'src/userscript/main.ts',
-      name: 'GPTListMaskUserscript',
+      name: 'ChatVeilUserscript',
       formats: ['iife'],
-      fileName: () => 'gpt-list-mask.user.js',
+      fileName: () => 'chatveil.user.js',
     },
     rollupOptions: {
       output: {

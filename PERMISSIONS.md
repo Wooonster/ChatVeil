@@ -15,10 +15,8 @@ Injects the content script into a user-authorized custom chatbot site after opti
 ## Static Host Permissions
 
 - ChatGPT, Claude, Qwen
-- Z.ai
-- Xiaomi XiaoAI, MiMo, and HyperOS AI web surfaces
 - MiniMax and Hailuo
-- DeepSeek, Kimi, Doubao, Tencent Yuanbao, ChatGLM, Tongyi, ERNIE/Yiyan
+- DeepSeek, Kimi, Doubao, Tencent Yuanbao, Tongyi, ERNIE/Yiyan
 - Gemini, Copilot, Perplexity, Poe, Mistral, Grok
 
 These are required for automatic masking on known chatbot sites without asking for broad all-sites access.

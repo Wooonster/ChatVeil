@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { chromium } from '@playwright/test';
 
-const bundlePath = new URL('../dist/userscript/gpt-list-mask.user.js', import.meta.url);
+const bundlePath = new URL('../dist/userscript/chatveil.user.js', import.meta.url);
 const script = await readFile(bundlePath, 'utf8');
 
 const defaultSettings = {
@@ -43,14 +43,14 @@ async function launchBrowser() {
 async function loadScenario(page, settings = defaultSettings) {
   await page.addInitScript((initialSettings) => {
     const store = {
-      gptListMaskSettings: initialSettings,
+      chatVeilSettings: initialSettings,
     };
     window.GM_getValue = (key, defaultValue) => (Object.hasOwn(store, key) ? store[key] : defaultValue);
     window.GM_setValue = (key, value) => {
       store[key] = value;
     };
     window.GM_registerMenuCommand = (_name, callback) => {
-      window.__gptlmMenuCallback = callback;
+      window.__chatveilMenuCallback = callback;
     };
   }, settings);
   await page.route('https://chatgpt.com/c/current', (route) =>
@@ -61,19 +61,19 @@ async function loadScenario(page, settings = defaultSettings) {
   );
   await page.goto('https://chatgpt.com/c/current');
   await page.addScriptTag({ content: script });
-  await page.waitForSelector('[data-gptlm-title="true"]');
+  await page.waitForSelector('[data-chatveil-title="true"]');
 }
 
 async function titleStates(page) {
-  return page.$$eval('[data-gptlm-title="true"]', (elements) =>
+  return page.$$eval('[data-chatveil-title="true"]', (elements) =>
     elements.map((element) => {
       const style = getComputedStyle(element);
       const afterStyle = getComputedStyle(element, '::after');
       return {
         text: element.textContent?.trim(),
-        state: element.dataset.gptlmState,
-        styleMode: element.dataset.gptlmStyle,
-        maskText: element.dataset.gptlmMaskText,
+        state: element.dataset.chatveilState,
+        styleMode: element.dataset.chatveilStyle,
+        maskText: element.dataset.chatveilMaskText,
         color: style.color,
         webkitTextFillColor: style.webkitTextFillColor,
         afterColor: afterStyle.color,
@@ -96,17 +96,17 @@ try {
 
   await page.locator('text=Private research notes').hover();
   await page.waitForFunction(() => {
-    const target = Array.from(document.querySelectorAll('[data-gptlm-title="true"]')).find(
+    const target = Array.from(document.querySelectorAll('[data-chatveil-title="true"]')).find(
       (element) => element.textContent?.trim() === 'Private research notes',
     );
-    return target?.dataset.gptlmState === 'visible';
+    return target?.dataset.chatveilState === 'visible';
   });
   await page.mouse.move(500, 500);
   await page.waitForFunction(() => {
-    const target = Array.from(document.querySelectorAll('[data-gptlm-title="true"]')).find(
+    const target = Array.from(document.querySelectorAll('[data-chatveil-title="true"]')).find(
       (element) => element.textContent?.trim() === 'Private research notes',
     );
-    return target?.dataset.gptlmState === 'masked';
+    return target?.dataset.chatveilState === 'masked';
   });
   await page.locator('button[aria-haspopup="menu"]').dispatchEvent('pointerdown');
   await page.evaluate(() => {
@@ -122,13 +122,13 @@ try {
     `;
     document.body.append(menu);
   });
-  await page.waitForSelector('[data-gptlm-menu-action="true"]');
-  await page.locator('[data-gptlm-menu-action="true"]').click();
+  await page.waitForSelector('[data-chatveil-menu-action="true"]');
+  await page.locator('[data-chatveil-menu-action="true"]').click();
   await page.waitForFunction(() => {
-    const target = Array.from(document.querySelectorAll('[data-gptlm-title="true"]')).find(
+    const target = Array.from(document.querySelectorAll('[data-chatveil-title="true"]')).find(
       (element) => element.textContent?.trim() === 'Private research notes',
     );
-    return target?.dataset.gptlmState === 'visible';
+    return target?.dataset.chatveilState === 'visible';
   });
 
   const characterPage = await browser.newPage();

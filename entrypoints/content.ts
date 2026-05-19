@@ -4,7 +4,7 @@ import { extensionStorage } from '../src/extension/storage';
 
 declare global {
   interface Window {
-    __gptListMaskEngine?: MaskEngine;
+    __chatVeilEngine?: MaskEngine;
   }
 }
 
@@ -16,7 +16,7 @@ export default defineContentScript({
   matches: CONTENT_SCRIPT_MATCHES,
   runAt: 'document_idle',
   main() {
-    if (window.__gptListMaskEngine) return;
+    if (window.__chatVeilEngine) return;
     const engine = new MaskEngine({
       root: document,
       location: window.location,
@@ -24,15 +24,15 @@ export default defineContentScript({
       onError(error) {
         if (isExtensionContextInvalidated(error)) {
           engine.stop();
-          if (window.__gptListMaskEngine === engine) {
-            delete window.__gptListMaskEngine;
+          if (window.__chatVeilEngine === engine) {
+            delete window.__chatVeilEngine;
           }
           return;
         }
         throw error;
       },
     });
-    window.__gptListMaskEngine = engine;
+    window.__chatVeilEngine = engine;
     void engine.start();
 
     chrome.runtime.onMessage.addListener((message: unknown) => {

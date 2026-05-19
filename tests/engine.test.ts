@@ -61,10 +61,10 @@ describe('mask engine', () => {
 
     await engine.start();
 
-    const titles = Array.from(document.querySelectorAll<HTMLElement>('[data-gptlm-title="true"]'));
+    const titles = Array.from(document.querySelectorAll<HTMLElement>('[data-chatveil-title="true"]'));
     expect(titles).toHaveLength(2);
-    expect(titles[0].dataset.gptlmState).toBe('visible');
-    expect(titles[1].dataset.gptlmState).toBe('masked');
+    expect(titles[0].dataset.chatveilState).toBe('visible');
+    expect(titles[1].dataset.chatveilState).toBe('masked');
     expect(titles[1].textContent).toBe('Private research notes');
   });
 
@@ -83,9 +83,9 @@ describe('mask engine', () => {
     });
 
     await engine.start();
-    const title = document.querySelector<HTMLElement>('[data-gptlm-title="true"]')!;
-    expect(title.dataset.gptlmMaskText).toHaveLength(120);
-    expect(title.dataset.gptlmMaskText?.startsWith('abab')).toBe(true);
+    const title = document.querySelector<HTMLElement>('[data-chatveil-title="true"]')!;
+    expect(title.dataset.chatveilMaskText).toHaveLength(120);
+    expect(title.dataset.chatveilMaskText?.startsWith('abab')).toBe(true);
     expect(storage.current().customMaskChar).toHaveLength(120);
   });
 
@@ -113,21 +113,21 @@ describe('mask engine', () => {
 
     await engine.start();
     const row = document.querySelector<HTMLElement>('a')!;
-    const title = document.querySelector<HTMLElement>('[data-gptlm-title="true"]')!;
-    expect(title.dataset.gptlmState).toBe('masked');
+    const title = document.querySelector<HTMLElement>('[data-chatveil-title="true"]')!;
+    expect(title.dataset.chatveilState).toBe('masked');
     expect(scans).toBe(1);
 
     row.dispatchEvent(new Event('pointerenter', { bubbles: true }));
-    expect(title.dataset.gptlmState).toBe('visible');
+    expect(title.dataset.chatveilState).toBe('visible');
     expect(scans).toBe(1);
 
     row.dispatchEvent(new Event('pointerleave', { bubbles: true }));
-    expect(title.dataset.gptlmState).toBe('masked');
+    expect(title.dataset.chatveilState).toBe('masked');
     expect(scans).toBe(1);
 
     row.dispatchEvent(new Event('pointerenter', { bubbles: true }));
     row.dispatchEvent(new Event('pointerleave', { bubbles: true }));
-    expect(title.dataset.gptlmState).toBe('masked');
+    expect(title.dataset.chatveilState).toBe('masked');
     expect(scans).toBe(1);
   });
 
@@ -190,17 +190,17 @@ describe('mask engine', () => {
 
     await engine.start();
     const row = document.querySelector<HTMLElement>('a')!;
-    const title = document.querySelector<HTMLElement>('[data-gptlm-title="true"]')!;
-    expect(title.dataset.gptlmState).toBe('masked');
+    const title = document.querySelector<HTMLElement>('[data-chatveil-title="true"]')!;
+    expect(title.dataset.chatveilState).toBe('masked');
 
     click(row, 3);
     await flushPromises();
-    expect(title.dataset.gptlmState).toBe('visible');
+    expect(title.dataset.chatveilState).toBe('visible');
     expect(storage.current().unlockedKeysByHost['chatgpt.com']).toHaveLength(1);
 
     click(row, 3);
     await flushPromises();
-    expect(title.dataset.gptlmState).toBe('masked');
+    expect(title.dataset.chatveilState).toBe('masked');
     expect(storage.current().unlockedKeysByHost['chatgpt.com']).toHaveLength(0);
   });
 
@@ -225,8 +225,8 @@ describe('mask engine', () => {
 
     await engine.start();
     const menuTrigger = document.querySelector<HTMLButtonElement>('button[aria-haspopup="menu"]')!;
-    const title = document.querySelector<HTMLElement>('[data-gptlm-title="true"]')!;
-    expect(title.dataset.gptlmState).toBe('masked');
+    const title = document.querySelector<HTMLElement>('[data-chatveil-title="true"]')!;
+    expect(title.dataset.chatveilState).toBe('masked');
 
     menuTrigger.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
     const menu = document.createElement('div');
@@ -242,7 +242,7 @@ describe('mask engine', () => {
     await engine.refresh();
     await engine.refresh();
 
-    const actions = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-gptlm-menu-action="true"]'));
+    const actions = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-chatveil-menu-action="true"]'));
     expect(actions).toHaveLength(1);
     const action = actions[0];
     expect(action.textContent).toContain('Pin title unmasked');
@@ -251,19 +251,19 @@ describe('mask engine', () => {
 
     now += 6_000;
     await engine.refresh();
-    const stableActions = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-gptlm-menu-action="true"]'));
+    const stableActions = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-chatveil-menu-action="true"]'));
     expect(stableActions).toHaveLength(1);
     expect(stableActions[0].nextElementSibling?.textContent).toBe('Pin chat');
 
     action.click();
     await flushPromises();
-    expect(title.dataset.gptlmState).toBe('visible');
+    expect(title.dataset.chatveilState).toBe('visible');
     expect(storage.current().unlockedKeysByHost['chatgpt.com']).toHaveLength(1);
     expect(action.textContent).toContain('Unpin title mask');
 
     action.click();
     await flushPromises();
-    expect(title.dataset.gptlmState).toBe('masked');
+    expect(title.dataset.chatveilState).toBe('masked');
     expect(storage.current().unlockedKeysByHost['chatgpt.com']).toHaveLength(0);
   });
 
@@ -294,20 +294,20 @@ describe('mask engine', () => {
       <div id="move-row" role="menuitem">
         <span>Move to project</span>
         <span>›</span>
-        <button data-gptlm-menu-action="true">P Pin title unmasked</button>
+        <button data-chatveil-menu-action="true">P Pin title unmasked</button>
       </div>
-      <button data-gptlm-menu-action="true">P Pin title unmasked</button>
+      <button data-chatveil-menu-action="true">P Pin title unmasked</button>
       <hr>
-      <button data-gptlm-menu-action="true">P Pin title unmasked</button>
+      <button data-chatveil-menu-action="true">P Pin title unmasked</button>
       <button role="menuitem">Pin chat</button>
       <button role="menuitem">Delete</button>
     `;
     document.body.append(menu);
     await engine.refresh();
 
-    const actions = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-gptlm-menu-action="true"]'));
+    const actions = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-chatveil-menu-action="true"]'));
     expect(actions).toHaveLength(1);
-    expect(document.querySelector('#move-row [data-gptlm-menu-action="true"]')).toBeNull();
+    expect(document.querySelector('#move-row [data-chatveil-menu-action="true"]')).toBeNull();
     expect(actions[0].parentElement).toBe(menu);
     expect(actions[0].nextElementSibling?.textContent).toBe('Pin chat');
   });
@@ -331,8 +331,8 @@ describe('mask engine', () => {
 
     await engine.start();
     const menuTrigger = document.querySelector<HTMLButtonElement>('button[aria-label="More actions"]')!;
-    const title = document.querySelector<HTMLElement>('[data-gptlm-title="true"]')!;
-    expect(title.dataset.gptlmState).toBe('masked');
+    const title = document.querySelector<HTMLElement>('[data-chatveil-title="true"]')!;
+    expect(title.dataset.chatveilState).toBe('masked');
 
     menuTrigger.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
     const menu = document.createElement('div');
@@ -344,11 +344,11 @@ describe('mask engine', () => {
     document.body.append(menu);
     await engine.refresh();
 
-    const action = document.querySelector<HTMLButtonElement>('[data-gptlm-menu-action="true"]')!;
+    const action = document.querySelector<HTMLButtonElement>('[data-chatveil-menu-action="true"]')!;
     expect(action.textContent).toContain('Pin title unmasked');
     action.click();
     await flushPromises();
-    expect(title.dataset.gptlmState).toBe('visible');
+    expect(title.dataset.chatveilState).toBe('visible');
     expect(storage.current().unlockedKeysByHost['chat.mistral.ai']).toHaveLength(1);
   });
 
@@ -381,7 +381,7 @@ describe('mask engine', () => {
     document.body.append(menu);
     await engine.refresh();
 
-    const action = document.querySelector<HTMLButtonElement>('[data-gptlm-menu-action="true"]')!;
+    const action = document.querySelector<HTMLButtonElement>('[data-chatveil-menu-action="true"]')!;
     expect(action.textContent).toContain('Pin title unmasked');
     expect(action.nextElementSibling?.textContent).toBe('Pin to top');
   });
@@ -405,8 +405,8 @@ describe('mask engine', () => {
 
     await engine.start();
     const menuTrigger = document.querySelector<HTMLButtonElement>('button[aria-label="Open conversation options"]')!;
-    const title = document.querySelector<HTMLElement>('[data-gptlm-title="true"]')!;
-    expect(title.dataset.gptlmState).toBe('masked');
+    const title = document.querySelector<HTMLElement>('[data-chatveil-title="true"]')!;
+    expect(title.dataset.chatveilState).toBe('masked');
 
     menuTrigger.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
     const menu = document.createElement('div');
@@ -419,13 +419,13 @@ describe('mask engine', () => {
     document.body.append(menu);
     await engine.refresh();
 
-    const action = document.querySelector<HTMLButtonElement>('[data-gptlm-menu-action="true"]')!;
+    const action = document.querySelector<HTMLButtonElement>('[data-chatveil-menu-action="true"]')!;
     expect(action.textContent).toContain('Pin title unmasked');
     expect(action.nextElementSibling?.textContent).toBe('Delete');
 
     action.click();
     await flushPromises();
-    expect(title.dataset.gptlmState).toBe('visible');
+    expect(title.dataset.chatveilState).toBe('visible');
     expect(storage.current().unlockedKeysByHost['claude.ai']).toHaveLength(1);
   });
 
@@ -449,17 +449,17 @@ describe('mask engine', () => {
     });
 
     await engine.start();
-    const row = document.querySelector<HTMLElement>('[data-gptlm-row="true"]')!;
-    const title = document.querySelector<HTMLElement>('[data-gptlm-title="true"]')!;
-    expect(title.dataset.gptlmTextWrapper).toBeUndefined();
+    const row = document.querySelector<HTMLElement>('[data-chatveil-row="true"]')!;
+    const title = document.querySelector<HTMLElement>('[data-chatveil-title="true"]')!;
+    expect(title.dataset.chatveilTextWrapper).toBeUndefined();
     expect(title.className).toContain('truncate');
-    expect(title.dataset.gptlmState).toBe('masked');
+    expect(title.dataset.chatveilState).toBe('masked');
 
     row.dispatchEvent(new Event('pointerenter', { bubbles: true }));
-    expect(title.dataset.gptlmState).toBe('visible');
+    expect(title.dataset.chatveilState).toBe('visible');
 
     row.dispatchEvent(new Event('pointerleave', { bubbles: true }));
-    expect(title.dataset.gptlmState).toBe('masked');
+    expect(title.dataset.chatveilState).toBe('masked');
   });
 
   it('adds the Claude Code menu action from an unlabeled icon button inside the Base UI popover body', async () => {
@@ -497,7 +497,7 @@ describe('mask engine', () => {
     await engine.refresh();
 
     const menuBody = document.querySelector<HTMLElement>('.min-h-0')!;
-    const action = document.querySelector<HTMLButtonElement>('[data-gptlm-menu-action="true"]')!;
+    const action = document.querySelector<HTMLButtonElement>('[data-chatveil-menu-action="true"]')!;
     expect(action.textContent).toContain('Pin title unmasked');
     expect(action.parentElement).toBe(menuBody);
     expect(action.nextElementSibling?.textContent).toContain('Delete');
@@ -544,7 +544,7 @@ describe('mask engine', () => {
     await engine.start();
 
     const menuBody = document.querySelector<HTMLElement>('#cc-menu-body')!;
-    const action = document.querySelector<HTMLButtonElement>('[data-gptlm-menu-action="true"]')!;
+    const action = document.querySelector<HTMLButtonElement>('[data-chatveil-menu-action="true"]')!;
     expect(action.textContent).toContain('Pin title unmasked');
     expect(action.parentElement).toBe(menuBody);
     expect(action.nextElementSibling?.textContent).toContain('Delete');
@@ -561,7 +561,7 @@ describe('mask engine', () => {
           <button role="menuitem">Copy</button>
           <button role="menuitem">Download</button>
         </div>
-        <button data-gptlm-menu-action="true">P Pin title unmasked</button>
+        <button data-chatveil-menu-action="true">P Pin title unmasked</button>
       </main>
     `;
     const storage = createMemoryStorage(normalizeSettings(undefined));
@@ -573,12 +573,12 @@ describe('mask engine', () => {
     });
 
     await engine.start();
-    const row = document.querySelector<HTMLElement>('[data-gptlm-row="true"]')!;
+    const row = document.querySelector<HTMLElement>('[data-chatveil-row="true"]')!;
     row.dispatchEvent(new Event('pointerenter'));
     await flushPromises();
     await engine.refresh();
 
-    expect(document.querySelector('[data-gptlm-menu-action="true"]')).toBeNull();
+    expect(document.querySelector('[data-chatveil-menu-action="true"]')).toBeNull();
   });
 
   it('associates a detached ellipsis button with the nearest masked row', async () => {
@@ -613,7 +613,7 @@ describe('mask engine', () => {
     document.body.append(menu);
     await engine.refresh();
 
-    const action = document.querySelector<HTMLButtonElement>('[data-gptlm-menu-action="true"]')!;
+    const action = document.querySelector<HTMLButtonElement>('[data-chatveil-menu-action="true"]')!;
     expect(action.textContent).toContain('Pin title unmasked');
     expect(action.nextElementSibling?.textContent).toBe('Delete');
   });
@@ -639,8 +639,8 @@ describe('mask engine', () => {
     });
 
     await engine.start();
-    expect(document.querySelector('[data-gptlm-title="true"]')).toBeNull();
-    expect(document.querySelector('[data-gptlm-menu-action="true"]')).toBeNull();
+    expect(document.querySelector('[data-chatveil-title="true"]')).toBeNull();
+    expect(document.querySelector('[data-chatveil-menu-action="true"]')).toBeNull();
   });
 
   it('masks MiniMax on the agent.minimaxi.com host', async () => {
@@ -687,12 +687,12 @@ describe('mask engine', () => {
     });
 
     await engine.start();
-    const titles = Array.from(document.querySelectorAll<HTMLElement>('[data-gptlm-title="true"]'));
+    const titles = Array.from(document.querySelectorAll<HTMLElement>('[data-chatveil-title="true"]'));
     expect(titles.map((title) => title.textContent?.trim())).toEqual(['Arena 分数', '你好']);
-    expect(titles.every((title) => title.dataset.gptlmState === 'masked')).toBe(true);
+    expect(titles.every((title) => title.dataset.chatveilState === 'masked')).toBe(true);
     expect(titles.every((title) => title.className.includes('truncate'))).toBe(true);
-    expect(document.querySelector('main [data-gptlm-title="true"]')).toBeNull();
-    expect(document.querySelector('.sidebar-footer [data-gptlm-title="true"]')).toBeNull();
+    expect(document.querySelector('main [data-chatveil-title="true"]')).toBeNull();
+    expect(document.querySelector('.sidebar-footer [data-chatveil-title="true"]')).toBeNull();
   });
 
   it('masks Qwen plain rows and injects into Chinese div menus', async () => {
@@ -722,8 +722,8 @@ describe('mask engine', () => {
     });
 
     await engine.start();
-    const title = document.querySelector<HTMLElement>('[data-gptlm-title="true"]')!;
-    expect(title.dataset.gptlmState).toBe('masked');
+    const title = document.querySelector<HTMLElement>('[data-chatveil-title="true"]')!;
+    expect(title.dataset.chatveilState).toBe('masked');
 
     const menuTrigger = document.querySelector<HTMLButtonElement>('button')!;
     menuTrigger.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
@@ -741,7 +741,7 @@ describe('mask engine', () => {
     document.body.append(menu);
     await engine.refresh();
 
-    const action = document.querySelector<HTMLButtonElement>('[data-gptlm-menu-action="true"]')!;
+    const action = document.querySelector<HTMLButtonElement>('[data-chatveil-menu-action="true"]')!;
     expect(action.textContent).toContain('Pin title unmasked');
     expect(action.nextElementSibling?.textContent).toBe('置顶');
   });
@@ -768,9 +768,9 @@ describe('mask engine', () => {
     });
 
     await engine.start();
-    const title = document.querySelector<HTMLElement>('[data-gptlm-title="true"]')!;
-    expect(title.dataset.gptlmState).toBe('masked');
-    expect(title.dataset.gptlmTextWrapper).toBe('true');
+    const title = document.querySelector<HTMLElement>('[data-chatveil-title="true"]')!;
+    expect(title.dataset.chatveilState).toBe('masked');
+    expect(title.dataset.chatveilTextWrapper).toBe('true');
     expect(title.textContent?.trim()).toBe('传染病预测模型与方法综述');
     expect(title.querySelector('button, [role="button"], img, svg')).toBeNull();
     expect(document.querySelector('button')?.textContent).toBe('•••');
@@ -800,8 +800,8 @@ describe('mask engine', () => {
     await engine.start();
     document.querySelector<HTMLElement>('[aria-label="More actions"]')?.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
     await engine.refresh();
-    expect(document.querySelector('[data-gptlm-title="true"]')).toBeNull();
-    expect(document.querySelector('[data-gptlm-menu-action="true"]')).toBeNull();
+    expect(document.querySelector('[data-chatveil-title="true"]')).toBeNull();
+    expect(document.querySelector('[data-chatveil-menu-action="true"]')).toBeNull();
   });
 
   it('runs generic sidebar masking only after a custom host is enabled', async () => {
@@ -819,9 +819,9 @@ describe('mask engine', () => {
     });
 
     await engine.start();
-    expect(document.querySelector('[data-gptlm-title="true"]')).toBeNull();
+    expect(document.querySelector('[data-chatveil-title="true"]')).toBeNull();
 
     await engine.setSettings(normalizeSettings({ customHosts: ['bot.example'], enabledHosts: { 'bot.example': true } }));
-    expect(document.querySelector<HTMLElement>('[data-gptlm-title="true"]')?.dataset.gptlmState).toBe('masked');
+    expect(document.querySelector<HTMLElement>('[data-chatveil-title="true"]')?.dataset.chatveilState).toBe('masked');
   });
 });

@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Background rounded square -->
+  <rect width="512" height="512" rx="96" fill="#e8eaed"/>
+
+  <!-- Current conversation row -->
+  <!-- Active indicator pill -->
+  <rect x="42" y="118" width="9" height="46" rx="4.5" fill="#4a7cff"/>
+  <!-- Title bar (visible) -->
+  <rect x="62" y="122" width="256" height="16" rx="5" fill="#1e293b"/>
+  <!-- Subtitle chip -->
+  <rect x="62" y="146" width="128" height="10" rx="4" fill="#4a7cff" opacity="0.6"/>
+
+  <!-- Masked row 2 -->
+  <rect x="62" y="198" width="290" height="16" rx="5" fill="#b0b8c8"/>
+  <rect x="62" y="221" width="180" height="10" rx="4" fill="#c4cad6"/>
+
+  <!-- Masked row 3 -->
+  <rect x="62" y="262" width="242" height="16" rx="5" fill="#b0b8c8"/>
+  <rect x="62" y="285" width="210" height="10" rx="4" fill="#c4cad6"/>
+
+  <!-- Masked row 4 -->
+  <rect x="62" y="326" width="268" height="16" rx="5" fill="#b0b8c8"/>
+  <rect x="62" y="349" width="160" height="10" rx="4" fill="#c4cad6"/>
+
+
+</svg>

@@ -1,14 +1,14 @@
 # Completion Audit
 
-Objective: read `PLAN.md` and implement GPT List Mask until the extension and userscript plugin are deployable.
+Objective: read `PLAN.md` and implement ChatVeil until the extension and userscript plugin are deployable.
 
 ## Checklist
 
 | Requirement | Evidence |
 | --- | --- |
 | WXT TypeScript MV3 extension scaffold | `package.json`, `wxt.config.ts`, `entrypoints/content.ts`, `entrypoints/background.ts`, `.output/chrome-mv3/manifest.json` |
-| Separate userscript bundle sharing the same core | `vite.userscript.config.ts`, `src/userscript/main.ts`, `dist/userscript/gpt-list-mask.user.js` |
-| DOM-safe engine that does not rewrite title text | `src/core/engine.ts` uses `data-gptlm-*` markers and CSS states; tests assert source title text is preserved |
+| Separate userscript bundle sharing the same core | `vite.userscript.config.ts`, `src/userscript/main.ts`, `dist/userscript/chatveil.user.js` |
+| DOM-safe engine that does not rewrite title text | `src/core/engine.ts` uses `data-chatveil-*` markers and CSS states; tests assert source title text is preserved |
 | Default skeleton mask plus character and blur modes | `src/core/constants.ts`, `src/core/engine.ts`, `entrypoints/popup/index.html` |
 | Current conversation visible, non-current masked | `src/core/engine.ts`, `tests/engine.test.ts` |
 | Hover/focus reveal only while pointer or focus is on the row, masking immediately on leave/blur | `src/core/engine.ts`, `tests/engine.test.ts`, `scripts/smoke-playwright.mjs` |
@@ -32,9 +32,9 @@ Objective: read `PLAN.md` and implement GPT List Mask until the extension and us
 - `npm run typecheck`: passed.
 - `npm run test:smoke`: passed, browser-level masking/current/hover/character-mode smoke.
 - `npm run build`: passed.
-- Extension artifact: `.output/gpt-list-mask-0.1.0-chrome.zip`.
+- Extension artifact: `.output/chatveil-0.1.0-chrome.zip`.
 - Unpacked extension: `.output/chrome-mv3/`.
-- Userscript artifact: `dist/userscript/gpt-list-mask.user.js`.
+- Userscript artifact: `dist/userscript/chatveil.user.js`.
 
 ## Manual Boundary
 

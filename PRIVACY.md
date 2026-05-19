@@ -1,6 +1,6 @@
 # Privacy Policy
 
-GPT List Mask is local-only privacy software.
+ChatVeil is local-only privacy software.
 
 ## Data Collection
 
@@ -19,7 +19,7 @@ Raw conversation titles are not stored. The extension derives stable keys from p
 
 ## Network
 
-GPT List Mask makes no network requests and loads no remote code.
+ChatVeil makes no network requests and loads no remote code.
 
 ## Permissions
 

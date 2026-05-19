@@ -116,7 +116,7 @@ describe('chatbot adapters', () => {
     `;
     const [item] = deepSeekAdapter.findHistoryItems(document);
     expect(item.title.textContent?.trim()).toBe('DeepSeek icon row title');
-    expect(item.title.dataset.gptlmTextWrapper).toBe('true');
+    expect(item.title.dataset.chatveilTextWrapper).toBe('true');
     expect(item.title.querySelector('[role="img"], img, svg')).toBeNull();
     expect(item.row.querySelector('[role="img"]')?.textContent).toBe('💬');
   });
@@ -134,7 +134,7 @@ describe('chatbot adapters', () => {
     `;
     const [item] = deepSeekAdapter.findHistoryItems(document);
     expect(item.title.textContent?.trim()).toBe('Private row title');
-    expect(item.title.dataset.gptlmTextWrapper).toBe('true');
+    expect(item.title.dataset.chatveilTextWrapper).toBe('true');
     expect(item.title.querySelector('button, [role="button"], img, svg')).toBeNull();
     expect(item.row.querySelector('button')?.textContent).toBe('•••');
   });
@@ -150,7 +150,7 @@ describe('chatbot adapters', () => {
     `;
     const [item] = deepSeekAdapter.findHistoryItems(document);
     expect(item.title.textContent?.trim()).toBe('Layout title text');
-    expect(item.title.dataset.gptlmTextWrapper).toBeUndefined();
+    expect(item.title.dataset.chatveilTextWrapper).toBeUndefined();
     expect(item.title.className).toContain('flex-1');
     expect(item.row.querySelector('button')?.textContent).toBe('•••');
   });
