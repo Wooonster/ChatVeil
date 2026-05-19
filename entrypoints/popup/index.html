@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GPT List Mask</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <main class="popup">
+      <header class="header">
+        <div>
+          <h1>GPT List Mask</h1>
+          <p id="site-label">Loading site...</p>
+        </div>
+        <span id="site-kind" class="badge">Known</span>
+      </header>
+
+      <section class="section">
+        <label class="switch-row">
+          <span>
+            <strong>Enable on this site</strong>
+            <small id="permission-note">Known chatbot sites are enabled by default.</small>
+          </span>
+          <input id="enabled" type="checkbox" />
+        </label>
+      </section>
+
+      <section class="section controls">
+        <button id="show-all" type="button">Show All 10m</button>
+        <button id="reset-unlocks" type="button">Reset Unlocks</button>
+      </section>
+
+      <section class="section form-grid">
+        <label class="full-row">
+          <span>Sync settings</span>
+          <input id="sync-enabled" type="checkbox" />
+        </label>
+        <label>
+          <span>Mask style</span>
+          <select id="mask-style">
+            <option value="skeleton">Skeleton</option>
+            <option value="characters">Characters</option>
+            <option value="blur">Blur</option>
+          </select>
+        </label>
+        <label>
+          <span>Mask character</span>
+          <input id="mask-char" maxlength="120" />
+        </label>
+      </section>
+
+      <section id="custom-section" class="section custom-site" hidden>
+        <button id="remove-custom" type="button">Remove Custom Site</button>
+      </section>
+
+      <p id="status" class="status" role="status"></p>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
