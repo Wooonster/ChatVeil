@@ -10,7 +10,7 @@ Deliverables:
 
 - TypeScript project scaffold with WXT extension build and Vite userscript build.
 - Shared masking core under `src/core`.
-- No text rewriting; masking uses `data-chatveil-*` attributes and CSS.
+- No text rewriting; masking uses `data-chatveil-*` attributes plus CSS/SVG overlays.
 
 Evidence:
 
@@ -45,6 +45,7 @@ Deliverables:
 - Content script starts the engine on supported sites.
 - Popup can enable or disable current site, show all temporarily, reset unlocks, choose mask style, and manage custom sites.
 - Popup can enable or disable Chrome sync for settings, custom hosts, and hashed unlock keys.
+- Default mask style is dynamic `Dissolve`, with `Skeleton`, `Characters`, and `Blur` retained as optional styles.
 
 Evidence:
 
@@ -104,9 +105,30 @@ Deliverables:
 Evidence:
 
 - `npm run lint`: passed.
-- `npm run test`: passed, 4 test files and 10 tests.
+- `npm run test`: passed, 4 test files and 39 tests.
 - `npm run typecheck`: passed.
-- `npm run test:smoke`: passed, browser-level masking, current-title, hover reveal, and character-mode smoke.
+- `npm run test:smoke`: passed, browser-level dissolve default, current-title, hover/remask, userscript style switch, menu pin, and character-mode smoke.
 - `npm run build:extension`: passed, produced `.output/chrome-mv3/` and `.output/chatveil-0.1.0-chrome.zip`.
 - `npm run build:userscript`: passed, produced `dist/userscript/chatveil.user.js`.
 - Packaged MV3 manifest inspected at `.output/chrome-mv3/manifest.json`.
+
+## PRD-7 Dynamic Dissolve Mask
+
+Status: Done
+
+Deliverables:
+
+- Default `Dissolve` mask style with animated SVG particles.
+- Reveal/remask state machine where particles scatter before title reveal and gather before remasking.
+- Long-list performance guard: one shared animation scheduler, offscreen pause/release, lighter idle cadence, and full-priority hover/focus transitions.
+- Reduced-motion support and fallback CSS for non-SVG or test environments.
+
+Evidence:
+
+- `src/core/engine.ts`
+- `src/core/constants.ts`
+- `src/core/settings.ts`
+- `entrypoints/popup/index.html`
+- `src/userscript/main.ts`
+- `tests/engine.test.ts`
+- `scripts/smoke-playwright.mjs`

@@ -37,7 +37,7 @@ export const DEFAULT_SETTINGS: MaskSettings = {
   version: 1,
   enabledHosts: {},
   customHosts: [],
-  maskStyle: 'skeleton',
+  maskStyle: 'dissolve',
   customMaskChar: '•',
   showAllUntilByHost: {},
   unlockedKeysByHost: {},

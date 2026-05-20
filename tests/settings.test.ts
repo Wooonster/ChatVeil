@@ -15,13 +15,14 @@ describe('settings normalization', () => {
         },
       }),
     ).toMatchObject({
-      maskStyle: 'skeleton',
+      maskStyle: 'dissolve',
       customMaskChar: 'x'.repeat(120),
       customHosts: ['example.com'],
       unlockedKeysByHost: {
         'example.com': ['sha256:abc'],
       },
     });
+    expect(normalizeSettings({ maskStyle: 'dissolve' }).maskStyle).toBe('dissolve');
   });
 
   it('enables known hosts by default and custom hosts only after authorization', () => {

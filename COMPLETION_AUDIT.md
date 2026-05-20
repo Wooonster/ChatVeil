@@ -8,10 +8,11 @@ Objective: read `PLAN.md` and implement ChatVeil until the extension and userscr
 | --- | --- |
 | WXT TypeScript MV3 extension scaffold | `package.json`, `wxt.config.ts`, `entrypoints/content.ts`, `entrypoints/background.ts`, `.output/chrome-mv3/manifest.json` |
 | Separate userscript bundle sharing the same core | `vite.userscript.config.ts`, `src/userscript/main.ts`, `dist/userscript/chatveil.user.js` |
-| DOM-safe engine that does not rewrite title text | `src/core/engine.ts` uses `data-chatveil-*` markers and CSS states; tests assert source title text is preserved |
-| Default skeleton mask plus character and blur modes | `src/core/constants.ts`, `src/core/engine.ts`, `entrypoints/popup/index.html` |
+| DOM-safe engine that does not rewrite title text | `src/core/engine.ts` uses `data-chatveil-*` markers plus CSS/SVG states; tests assert source title text is preserved |
+| Default dynamic dissolve mask plus skeleton, character, and blur modes | `src/core/constants.ts`, `src/core/engine.ts`, `entrypoints/popup/index.html`, `src/userscript/main.ts` |
+| Dissolve reveal/remask state machine and long-list performance guard | `src/core/engine.ts` uses SVG particles, a shared animation scheduler, viewport pausing, and reduced-motion handling |
 | Current conversation visible, non-current masked | `src/core/engine.ts`, `tests/engine.test.ts` |
-| Hover/focus reveal only while pointer or focus is on the row, masking immediately on leave/blur | `src/core/engine.ts`, `tests/engine.test.ts`, `scripts/smoke-playwright.mjs` |
+| Hover/focus reveal only while pointer or focus is on the row, with dissolve scatter and gather transitions | `src/core/engine.ts`, `tests/engine.test.ts`, `scripts/smoke-playwright.mjs` |
 | Triple-click per-title unlock | `src/core/engine.ts`, `tests/engine.test.ts` |
 | Popup controls for enable/disable, show all, reset unlocks, style, custom sites | `entrypoints/popup/index.html`, `entrypoints/popup/main.ts` |
 | Static host permissions only for known chatbot domains | `wxt.config.ts`, `.output/chrome-mv3/manifest.json` |
@@ -28,9 +29,9 @@ Objective: read `PLAN.md` and implement ChatVeil until the extension and userscr
 ## Verification
 
 - `npm run lint`: passed.
-- `npm run test`: passed, 4 files and 10 tests.
+- `npm run test`: passed, 4 files and 39 tests.
 - `npm run typecheck`: passed.
-- `npm run test:smoke`: passed, browser-level masking/current/hover/character-mode smoke.
+- `npm run test:smoke`: passed, browser-level dissolve default/current/hover/remask/style-switch/menu-pin/character-mode smoke.
 - `npm run build`: passed.
 - Extension artifact: `.output/chatveil-0.1.0-chrome.zip`.
 - Unpacked extension: `.output/chrome-mv3/`.

@@ -8,7 +8,7 @@ const defaultSettings = {
   version: 1,
   enabledHosts: {},
   customHosts: [],
-  maskStyle: 'skeleton',
+  maskStyle: 'dissolve',
   customMaskChar: '*',
   showAllUntilByHost: {},
   unlockedKeysByHost: {},
@@ -69,15 +69,23 @@ async function titleStates(page) {
     elements.map((element) => {
       const style = getComputedStyle(element);
       const afterStyle = getComputedStyle(element, '::after');
+      const particleLayer = element.querySelector('[data-chatveil-particle-layer="true"]');
       return {
         text: element.textContent?.trim(),
         state: element.dataset.chatveilState,
         styleMode: element.dataset.chatveilStyle,
+        transition: element.dataset.chatveilTransition,
         maskText: element.dataset.chatveilMaskText,
         color: style.color,
         webkitTextFillColor: style.webkitTextFillColor,
         afterColor: afterStyle.color,
         afterContent: afterStyle.content,
+        afterOpacity: afterStyle.opacity,
+        afterBackgroundColor: afterStyle.backgroundColor,
+        afterBackgroundImage: afterStyle.backgroundImage,
+        hasParticleLayer: Boolean(particleLayer),
+        particleDisplay: particleLayer ? getComputedStyle(particleLayer).display : '',
+        particleCount: particleLayer?.querySelectorAll('circle').length ?? 0,
       };
     }),
   );
@@ -92,9 +100,19 @@ try {
   const old = states.find((state) => state.text === 'Private research notes');
   assert(current?.state === 'visible', 'Current title should remain visible.');
   assert(old?.state === 'masked', 'Non-current title should be masked.');
+  assert(old?.styleMode === 'dissolve', 'Default mask style should be dissolve.');
   assert(old.color === 'rgba(0, 0, 0, 0)' || old.webkitTextFillColor === 'rgba(0, 0, 0, 0)', 'Masked text should be visually transparent.');
+  assert(old.hasParticleLayer, 'Dissolve mask should render the SVG particle layer.');
+  assert(old.particleDisplay !== 'none', 'Dissolve particle layer should be visible while masked.');
+  assert(old.particleCount >= 90, 'Dissolve particle layer should contain dense particles.');
 
   await page.locator('text=Private research notes').hover();
+  await page.waitForFunction(() => {
+    const target = Array.from(document.querySelectorAll('[data-chatveil-title="true"]')).find(
+      (element) => element.textContent?.trim() === 'Private research notes',
+    );
+    return target?.dataset.chatveilTransition === 'revealing' && target?.dataset.chatveilState === 'masked';
+  });
   await page.waitForFunction(() => {
     const target = Array.from(document.querySelectorAll('[data-chatveil-title="true"]')).find(
       (element) => element.textContent?.trim() === 'Private research notes',
@@ -106,7 +124,23 @@ try {
     const target = Array.from(document.querySelectorAll('[data-chatveil-title="true"]')).find(
       (element) => element.textContent?.trim() === 'Private research notes',
     );
+    return target?.dataset.chatveilTransition === 'remasking' && target?.dataset.chatveilState === 'visible';
+  });
+  await page.waitForFunction(() => {
+    const target = Array.from(document.querySelectorAll('[data-chatveil-title="true"]')).find(
+      (element) => element.textContent?.trim() === 'Private research notes',
+    );
     return target?.dataset.chatveilState === 'masked';
+  });
+  await page.evaluate(() => {
+    window.__chatveilMenuCallback?.();
+  });
+  await page.selectOption('#chatveil-userscript-panel select[name="style"]', 'skeleton');
+  await page.waitForFunction(() => {
+    const target = Array.from(document.querySelectorAll('[data-chatveil-title="true"]')).find(
+      (element) => element.textContent?.trim() === 'Private research notes',
+    );
+    return target?.dataset.chatveilStyle === 'skeleton';
   });
   await page.locator('button[aria-haspopup="menu"]').dispatchEvent('pointerdown');
   await page.evaluate(() => {
@@ -144,7 +178,7 @@ try {
   assert(characterMasked?.afterContent?.includes('#'), 'Character mask pseudo-element should render configured characters.');
   assert(characterMasked?.afterColor !== 'rgba(0, 0, 0, 0)', 'Character mask pseudo-element should be visible.');
 
-  console.log('Playwright smoke passed: masking, current title, hover reveal, menu pin, and character mode.');
+  console.log('Playwright smoke passed: dissolve default, hover reveal, userscript style switch, menu pin, and character mode.');
 } finally {
   await browser.close();
 }

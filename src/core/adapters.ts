@@ -1,3 +1,4 @@
+import { DATA_PREFIX } from './constants';
 import type { ChatbotAdapter, HistoryItem } from './types';
 
 const titleSelector = [
@@ -204,6 +205,7 @@ function chooseTitleElement(anchor: HTMLElement): HTMLElement {
 }
 
 function isMediaElement(element: HTMLElement): boolean {
+  if (isChatVeilParticleElement(element)) return false;
   const className = typeof element.className === 'string' ? element.className : '';
   return (
     ['IMG', 'SVG', 'CANVAS', 'PICTURE', 'VIDEO'].includes(element.tagName) ||
@@ -212,8 +214,14 @@ function isMediaElement(element: HTMLElement): boolean {
   );
 }
 
+function isChatVeilParticleElement(element: Element): boolean {
+  return element.getAttribute(`data-${DATA_PREFIX}-particle-layer`) === 'true';
+}
+
 function hasMediaChild(element: HTMLElement): boolean {
-  return Boolean(element.querySelector('img, svg, canvas, picture, video, [role="img"], .icon, [class*="icon"], [class*="avatar"]'));
+  return Array.from(element.querySelectorAll('img, svg, canvas, picture, video, [role="img"], .icon, [class*="icon"], [class*="avatar"]')).some(
+    (child) => !isChatVeilParticleElement(child),
+  );
 }
 
 function isActionElement(element: HTMLElement): boolean {

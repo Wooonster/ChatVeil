@@ -87,6 +87,7 @@ function renderPanel(settings: MaskSettings): HTMLElement {
     <label>
       Style
       <select name="style">
+        <option value="dissolve" ${settings.maskStyle === 'dissolve' ? 'selected' : ''}>Dissolve</option>
         <option value="skeleton" ${settings.maskStyle === 'skeleton' ? 'selected' : ''}>Skeleton</option>
         <option value="characters" ${settings.maskStyle === 'characters' ? 'selected' : ''}>Characters</option>
         <option value="blur" ${settings.maskStyle === 'blur' ? 'selected' : ''}>Blur</option>

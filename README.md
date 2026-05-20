@@ -10,11 +10,11 @@ The project ships the same TypeScript masking core in two forms:
 ## What It Does
 
 - Masks chat history titles without rewriting the original page text.
-- Reveals a title temporarily on hover or focus.
+- Reveals a title temporarily on hover or focus with a soft dissolve transition.
 - Keeps the active conversation title readable.
 - Adds a lightweight menu action to keep individual titles unmasked.
 - Stores per-title unlocks as hashed keys instead of raw titles.
-- Supports a default skeleton mask, a character mask, and a blur mode.
+- Supports a default dynamic dissolve mask, plus skeleton, character, and blur modes.
 - Lets users enable unknown chatbot sites one origin at a time from the popup.
 
 ## Supported Sites
@@ -40,7 +40,19 @@ ChatVeil is designed to stay on the page and in the browser:
 - No raw conversation-title storage.
 - No destructive text replacement.
 
-The content script adds namespaced `data-chatveil-*` attributes and CSS overlays to mask titles visually. Settings, custom hosts, temporary show-all state, and hashed unlock keys are stored through browser storage or userscript storage.
+The content script adds namespaced `data-chatveil-*` attributes plus CSS/SVG overlays to mask titles visually. The default dissolve style renders an ephemeral SVG particle layer over the existing title; it does not copy raw titles into persistent storage, `data-*` attributes, canvas buffers, or generated assets. Settings, custom hosts, temporary show-all state, and hashed unlock keys are stored through browser storage or userscript storage.
+
+## Dynamic Dissolve Mask
+
+The default `Dissolve` style masks non-current titles as a living particle cloud. Particles lightly drift while idle, scatter before a hovered or focused title becomes readable, and gather back when the title is masked again.
+
+The dissolve implementation is tuned for long sidebars:
+
+- One shared animation scheduler drives all dissolve titles instead of one loop per title.
+- Offscreen particle layers pause and release their SVG circle nodes.
+- Idle masked titles use a lighter frame cadence.
+- Hover, focus, reveal, and remask transitions keep full motion priority.
+- `prefers-reduced-motion: reduce` falls back to a simplified low-motion state.
 
 ## Project Layout
 
@@ -87,7 +99,7 @@ Build artifacts are generated locally and ignored by git.
 2. Open `chrome://extensions`, enable Developer Mode, and load `.output/chrome-mv3` as an unpacked extension.
 3. Visit ChatGPT, Claude, and Qwen.
 4. Confirm the current conversation title remains visible while non-current titles are masked.
-5. Hover or focus a masked title and confirm it reveals briefly.
+5. Hover or focus a masked title and confirm particles scatter before the title becomes readable.
 6. Triple-click a masked title and confirm it stays visible after refresh.
 7. Open the popup, disable and re-enable the current site, use `Show All 10m`, reset unlocks, and switch mask styles.
 8. For a custom chatbot site, enable it from the popup and confirm the optional single-origin permission request appears.
