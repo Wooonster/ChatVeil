@@ -1,5 +1,7 @@
 # ChatVeil
 
+English | [简体中文](README.zh-CN.md)
+
 ChatVeil is a local-only privacy tool for chatbot sidebars. It masks non-current conversation titles by default, keeps the current conversation visible, reveals masked titles while hovered or keyboard-focused, and lets users pin individual titles visible from chat menus or with a triple-click.
 
 The project ships the same TypeScript masking core in two forms:
@@ -19,15 +21,30 @@ The project ships the same TypeScript masking core in two forms:
 
 ## Supported Sites
 
-First-class adapters are included for:
+- **ChatGPT** — [chatgpt.com](https://chatgpt.com/)
+- **Grok** — [grok.com](https://grok.com/)
+- **Claude** — [claude.ai](https://claude.ai/)
+- **DeepSeek** — [chat.deepseek.com](https://chat.deepseek.com/)
+- **Kimi** — [kimi.com](https://kimi.com/) and [kimi.moonshot.cn](https://kimi.moonshot.cn/)
+- **Qwen** — [chat.qwen.ai](https://chat.qwen.ai/)
 
-- ChatGPT: `chatgpt.com`
-- Claude: `claude.ai`
-- Qwen: `qwen.ai` and `chat.qwen.ai`
-- DeepSeek: `chat.deepseek.com`
-- MiniMax/Hailuo: `minimax.io`, `agent.minimax.com`, and `agent.minimaxi.com`
+ChatGPT, Claude, DeepSeek, and Qwen have dedicated adapters; Grok and Kimi use the generic sidebar adapter. You can also enable another chatbot site from the popup with permission for that site. Site layouts can change, so menu integration and masking may vary.
 
-The generic adapter also supports known chatbot hosts such as Kimi, Doubao, Tencent Yuanbao, Tongyi, ERNIE/Yiyan, Gemini, Copilot, Perplexity, Poe, Mistral, and Grok. Other chatbot sites can be enabled manually from the extension popup with a single-origin permission request.
+## Screenshots
+
+These screenshots show the current masking engine on an illustrative demo page with sample conversations. They use the Skeleton mask; no real chat history is shown.
+
+**Masked history** — the current conversation stays readable while other titles are covered.
+
+![Demo of masked conversation titles](promo/readme/chatveil-masked.png)
+
+**Hover to reveal** — a title is readable while the pointer is over its row.
+
+![Demo of a temporarily revealed title](promo/readme/chatveil-hover.png)
+
+**Keep a title visible** — choose “Pin title unmasked” from the conversation menu.
+
+![Demo of the pin title unmasked menu action](promo/readme/chatveil-menu.png)
 
 ## Privacy Model
 
@@ -40,7 +57,7 @@ ChatVeil is designed to stay on the page and in the browser:
 - No raw conversation-title storage.
 - No destructive text replacement.
 
-The content script adds namespaced `data-chatveil-*` attributes plus CSS/SVG overlays to mask titles visually. Dynamic styles render ephemeral SVG particle layers over the existing title; they do not copy raw titles into persistent storage, `data-*` attributes, canvas buffers, or generated assets. Settings, custom hosts, temporary show-all state, and hashed unlock keys are stored through browser storage or userscript storage.
+The content script adds namespaced `data-chatveil-*` attributes plus CSS/SVG overlays to mask titles visually. Dynamic styles render ephemeral SVG particle layers over the existing title; they do not copy raw titles into persistent storage, `data-*` attributes, canvas buffers, or generated assets. Settings, custom hosts, temporary show-all state, and hashed unlock keys are stored through browser storage or userscript storage. If sync is enabled, settings are also stored using the browser’s sync storage.
 
 ## Dynamic Masks
 
@@ -103,7 +120,7 @@ Build artifacts are generated locally and ignored by git.
 
 1. Run `npm run build:extension`.
 2. Open `chrome://extensions`, enable Developer Mode, and load `.output/chrome-mv3` as an unpacked extension.
-3. Visit ChatGPT, Claude, and Qwen.
+3. Visit a supported site such as ChatGPT, Claude, or Qwen.
 4. Confirm the current conversation title remains visible while non-current titles are masked.
 5. Hover or focus a masked title and confirm particles scatter before the title becomes readable.
 6. Triple-click a masked title and confirm it stays visible after refresh.
