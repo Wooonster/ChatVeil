@@ -15,7 +15,7 @@ Settings are stored locally in the browser:
 - Mask style and custom mask character.
 - Hashed unlock keys for titles the user triple-clicked.
 
-Raw conversation titles are not stored. The extension derives stable keys from page links or DOM identity and stores only hashed unlock keys. The default dissolve mask renders temporary SVG particles on the page; it does not upload titles or copy raw titles into persistent storage, `data-*` attributes, canvas buffers, or generated assets.
+Raw conversation titles are not stored. The extension derives stable keys from page links or DOM identity and stores only hashed unlock keys. Dynamic mask styles render temporary SVG particles on the page; they do not upload titles or copy raw titles into persistent storage, `data-*` attributes, canvas buffers, or generated assets.
 
 ## Network
 

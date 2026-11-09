@@ -9,6 +9,14 @@ import {
 import { MaskEngine, createMemoryStorage } from '../src/core/engine';
 import { normalizeSettings } from '../src/core/settings';
 
+const testEngines: MaskEngine[] = [];
+
+function createTestEngine(options: ConstructorParameters<typeof MaskEngine>[0]): MaskEngine {
+  const engine = new MaskEngine(options);
+  testEngines.push(engine);
+  return engine;
+}
+
 function click(element: HTMLElement, detail: number): void {
   element.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, detail }));
 }
@@ -41,6 +49,7 @@ describe('mask engine', () => {
   });
 
   afterEach(() => {
+    for (const engine of testEngines.splice(0)) engine.stop();
     vi.unstubAllGlobals();
   });
 
@@ -52,7 +61,7 @@ describe('mask engine', () => {
       </nav>
     `;
     const storage = createMemoryStorage(normalizeSettings(undefined));
-    const engine = new MaskEngine({
+    const engine = createTestEngine({
       root: document,
       location: new URL('https://chatgpt.com/c/current') as unknown as Location,
       storage,
@@ -66,6 +75,63 @@ describe('mask engine', () => {
     expect(titles[0].dataset.chatveilState).toBe('visible');
     expect(titles[1].dataset.chatveilState).toBe('masked');
     expect(titles[1].textContent).toBe('Private research notes');
+    engine.stop();
+  });
+
+  it('detects sidebar rows added while the initial asynchronous scan is running', async () => {
+    let finishDigest!: (value: ArrayBuffer) => void;
+    let firstDigest = true;
+    vi.stubGlobal('crypto', { subtle: { digest: () => {
+      if (!firstDigest) return Promise.resolve(new Uint8Array(32).buffer);
+      firstDigest = false;
+      return new Promise<ArrayBuffer>((resolve) => { finishDigest = resolve; });
+    } } });
+    document.body.innerHTML = '<nav><a href="https://chatgpt.com/c/old"><span>First title</span></a></nav>';
+    const engine = createTestEngine({
+      root: document,
+      location: new URL('https://chatgpt.com/c/current') as unknown as Location,
+      storage: createMemoryStorage(normalizeSettings(undefined)),
+      adapters: [chatGptAdapter],
+    });
+    const started = engine.start();
+    await flushPromises();
+    document.querySelector('nav')!.insertAdjacentHTML('beforeend', '<a href="https://chatgpt.com/c/new"><span>Late title</span></a>');
+    finishDigest(new Uint8Array(32).buffer);
+    await started;
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    expect(document.querySelectorAll('[data-chatveil-state="masked"]')).toHaveLength(2);
+    engine.stop();
+  });
+
+  it('does not add ChatGPT actions to unrelated menus near a history row', async () => {
+    document.body.innerHTML = `
+      <nav><div><a href="https://chatgpt.com/c/old"><span>Private title</span></a><button aria-haspopup="menu">More</button></div></nav>
+      <button id="other">Other menu</button>
+    `;
+    const engine = createTestEngine({
+      root: document,
+      location: new URL('https://chatgpt.com/c/current') as unknown as Location,
+      storage: createMemoryStorage(normalizeSettings(undefined)),
+      adapters: [chatGptAdapter],
+    });
+    await engine.start();
+    document.querySelector('nav button')!.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+    const menu = document.createElement('div');
+    menu.setAttribute('role', 'menu');
+    menu.innerHTML = '<div role="menuitem">Rename</div><div role="menuitem">Delete</div>';
+    document.body.append(menu);
+    await engine.refresh();
+    expect(menu.querySelector('[data-chatveil-menu-action]')).not.toBeNull();
+    menu.remove();
+    document.querySelector('#other')!.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+    const unrelated = document.createElement('div');
+    unrelated.setAttribute('role', 'menu');
+    unrelated.innerHTML = '<div role="menuitem">Rename</div><div role="menuitem">Delete</div>';
+    document.body.append(unrelated);
+    setRect(unrelated, { left: 10, top: 20, right: 200, bottom: 120, width: 190, height: 100 });
+    await engine.refresh();
+    expect(unrelated.querySelector('[data-chatveil-menu-action]')).toBeNull();
+    engine.stop();
   });
 
   it('accepts multi-character masks capped at 120 characters', async () => {
@@ -75,7 +141,7 @@ describe('mask engine', () => {
       </nav>
     `;
     const storage = createMemoryStorage(normalizeSettings({ customMaskChar: 'ab'.repeat(70), maskStyle: 'characters' }));
-    const engine = new MaskEngine({
+    const engine = createTestEngine({
       root: document,
       location: new URL('https://chatgpt.com/c/current') as unknown as Location,
       storage,
@@ -106,7 +172,7 @@ describe('mask engine', () => {
         },
       };
       const storage = createMemoryStorage(normalizeSettings(undefined));
-      const engine = new MaskEngine({
+      const engine = createTestEngine({
         root: document,
         location: new URL('https://chatgpt.com/c/current') as unknown as Location,
         storage,
@@ -158,6 +224,52 @@ describe('mask engine', () => {
     }
   });
 
+  for (const maskStyle of ['constellation', 'ripple', 'ember'] as const) {
+    it(`reveals and remasks with the ${maskStyle} dynamic mask without rewriting text`, async () => {
+      vi.useFakeTimers();
+      try {
+        document.body.innerHTML = `
+          <nav>
+            <a href="https://chatgpt.com/c/old"><span>Private research notes</span></a>
+          </nav>
+        `;
+        const storage = createMemoryStorage(normalizeSettings({ maskStyle }));
+        const engine = createTestEngine({
+          root: document,
+          location: new URL('https://chatgpt.com/c/current') as unknown as Location,
+          storage,
+          adapters: [chatGptAdapter],
+        });
+
+        await engine.start();
+        const row = document.querySelector<HTMLElement>('a')!;
+        const title = document.querySelector<HTMLElement>('[data-chatveil-title="true"]')!;
+        expect(title.dataset.chatveilStyle).toBe(maskStyle);
+        expect(title.dataset.chatveilState).toBe('masked');
+        expect(title.textContent).toBe('Private research notes');
+
+        row.dispatchEvent(new Event('pointerenter', { bubbles: true }));
+        expect(title.dataset.chatveilState).toBe('masked');
+        expect(title.dataset.chatveilTransition).toBe('revealing');
+
+        await vi.advanceTimersByTimeAsync(720);
+        expect(title.dataset.chatveilState).toBe('visible');
+        expect(title.dataset.chatveilTransition).toBeUndefined();
+        expect(title.textContent).toBe('Private research notes');
+
+        row.dispatchEvent(new Event('pointerleave', { bubbles: true }));
+        expect(title.dataset.chatveilState).toBe('visible');
+        expect(title.dataset.chatveilTransition).toBe('remasking');
+
+        await vi.advanceTimersByTimeAsync(520);
+        expect(title.dataset.chatveilState).toBe('masked');
+        expect(title.dataset.chatveilTransition).toBeUndefined();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  }
+
   it('does not let stale dissolve timers hide an unlocked title', async () => {
     vi.useFakeTimers();
     try {
@@ -167,7 +279,7 @@ describe('mask engine', () => {
         </nav>
       `;
       const storage = createMemoryStorage(normalizeSettings(undefined));
-      const engine = new MaskEngine({
+      const engine = createTestEngine({
         root: document,
         location: new URL('https://chatgpt.com/c/current') as unknown as Location,
         storage,
@@ -211,7 +323,7 @@ describe('mask engine', () => {
           },
         }),
       );
-      const engine = new MaskEngine({
+      const engine = createTestEngine({
         root: document,
         location: new URL('https://chatgpt.com/c/current') as unknown as Location,
         storage,
@@ -254,7 +366,7 @@ describe('mask engine', () => {
         },
       };
       const storage = createMemoryStorage(normalizeSettings(undefined));
-      const engine = new MaskEngine({
+      const engine = createTestEngine({
         root: document,
         location: new URL('https://chatgpt.com/c/current') as unknown as Location,
         storage,
@@ -287,7 +399,7 @@ describe('mask engine', () => {
       </nav>
     `;
     const storage = createMemoryStorage(normalizeSettings({ maskStyle: 'skeleton' }));
-    const engine = new MaskEngine({
+    const engine = createTestEngine({
       root: document,
       location: new URL('https://chatgpt.com/c/current') as unknown as Location,
       storage,
@@ -321,7 +433,7 @@ describe('mask engine', () => {
     `;
     let now = 1_000;
     const storage = createMemoryStorage(normalizeSettings(undefined));
-    const engine = new MaskEngine({
+    const engine = createTestEngine({
       root: document,
       location: new URL('https://chatgpt.com/c/current') as unknown as Location,
       storage,
@@ -371,6 +483,92 @@ describe('mask engine', () => {
     await flushPromises();
     expect(title.dataset.chatveilState).toBe('masked');
     expect(storage.current().unlockedKeysByHost['chatgpt.com']).toHaveLength(0);
+    engine.stop();
+  });
+
+  it('adds and retains the title action in a grouped ChatGPT pinned conversation menu', async () => {
+    document.body.innerHTML = `
+      <nav><div><a href="https://chatgpt.com/c/pinned"><span>Pinned conversation</span></a>
+        <button aria-label="More options" aria-haspopup="menu" aria-controls="conversation-menu"><svg></svg></button>
+      </div></nav>
+    `;
+    const storage = createMemoryStorage(normalizeSettings(undefined));
+    const engine = createTestEngine({
+      root: document,
+      location: new URL('https://chatgpt.com/') as unknown as Location,
+      storage,
+      adapters: [chatGptAdapter],
+    });
+    await engine.start();
+    document.querySelector('nav button')!.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+    const menu = document.createElement('div');
+    menu.id = 'conversation-menu';
+    menu.setAttribute('role', 'menu');
+    menu.innerHTML = `
+      <div role="group"><div role="menuitem">Rename</div><div role="menuitem">Unpin</div><div role="menuitem">Lock chat</div></div>
+      <div role="separator"></div><div role="group"><div role="menuitem">Share</div></div>
+      <div role="separator"></div><div role="group"><div role="menuitem">Archive</div><div role="menuitem">Delete</div></div>
+      <div role="separator"></div><div role="menuitem" id="move-to-project">Move to project<div role="menu"><div role="menuitem">New project</div></div></div>
+    `;
+    document.body.append(menu);
+    await engine.refresh();
+    await engine.refresh();
+    const action = menu.querySelector<HTMLButtonElement>('[data-chatveil-menu-action="true"]');
+    expect(action?.textContent).toContain('Pin title unmasked');
+    expect(action?.nextElementSibling?.textContent).toBe('Unpin');
+    expect(menu.querySelectorAll('[data-chatveil-menu-action="true"]')).toHaveLength(1);
+    expect(document.querySelector('#move-to-project [data-chatveil-menu-action]')).toBeNull();
+    action!.click();
+    await flushPromises();
+    expect(storage.current().unlockedKeysByHost['chatgpt.com']).toHaveLength(1);
+    expect(document.querySelector<HTMLElement>('[data-chatveil-title]')?.dataset.chatveilState).toBe('visible');
+    await engine.refresh();
+    expect(menu.querySelector('[data-chatveil-menu-action]')?.textContent).toContain('Unpin title mask');
+    engine.stop();
+  });
+
+  it('associates a lazily mounted ChatGPT menu trigger with its own conversation link', async () => {
+    document.body.innerHTML = `
+      <nav><div id="first"><a href="https://chatgpt.com/c/first"><span>First conversation</span></a></div>
+      <div id="second"><a href="https://chatgpt.com/c/second"><span>Second conversation</span></a></div></nav>
+    `;
+    const storage = createMemoryStorage(normalizeSettings(undefined));
+    let now = 1_000;
+    const engine = createTestEngine({
+      root: document,
+      location: new URL('https://chatgpt.com/') as unknown as Location,
+      storage,
+      adapters: [chatGptAdapter],
+      clock: () => now,
+    });
+    await engine.start();
+    const trigger = document.createElement('button');
+    trigger.setAttribute('aria-haspopup', 'menu');
+    trigger.setAttribute('aria-label', 'More options');
+    document.querySelector('#second')!.append(trigger);
+    trigger.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+    const menu = document.createElement('div');
+    menu.setAttribute('role', 'menu');
+    menu.innerHTML = '<div role="menuitem">Rename</div><div role="menuitem">Unpin</div><div role="menuitem">Delete</div>';
+    document.body.append(menu);
+    await engine.refresh();
+    const action = menu.querySelector<HTMLButtonElement>('[data-chatveil-menu-action]');
+    expect(action?.nextElementSibling?.textContent).toBe('Unpin');
+    now += 31_000;
+    await engine.refresh();
+    expect(menu.querySelector('[data-chatveil-menu-action]')).toBe(action);
+    action!.click();
+    await flushPromises();
+    expect(document.querySelector<HTMLElement>('#first [data-chatveil-title]')?.dataset.chatveilState).toBe('masked');
+    expect(document.querySelector<HTMLElement>('#second [data-chatveil-title]')?.dataset.chatveilState).toBe('visible');
+    menu.remove();
+    trigger.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+    const reopenedMenu = menu.cloneNode(true) as HTMLElement;
+    reopenedMenu.querySelector('[data-chatveil-menu-action]')?.remove();
+    document.body.append(reopenedMenu);
+    await engine.refresh();
+    expect(reopenedMenu.querySelector('[data-chatveil-menu-action]')?.textContent).toContain('Unpin title mask');
+    engine.stop();
   });
 
   it('removes bad nested menu actions from ChatGPT move-to-project rows', async () => {
@@ -383,7 +581,7 @@ describe('mask engine', () => {
       </nav>
     `;
     const storage = createMemoryStorage(normalizeSettings(undefined));
-    const engine = new MaskEngine({
+    const engine = createTestEngine({
       root: document,
       location: new URL('https://chatgpt.com/c/current') as unknown as Location,
       storage,
@@ -428,7 +626,7 @@ describe('mask engine', () => {
       </aside>
     `;
     const storage = createMemoryStorage(normalizeSettings(undefined));
-    const engine = new MaskEngine({
+    const engine = createTestEngine({
       root: document,
       location: new URL('https://chat.mistral.ai/chat/current') as unknown as Location,
       storage,
@@ -458,6 +656,20 @@ describe('mask engine', () => {
     expect(storage.current().unlockedKeysByHost['chat.mistral.ai']).toHaveLength(1);
   });
 
+  it('enables and masks conversations on the current kimi.com domain', async () => {
+    document.body.innerHTML = `
+      <nav class="sidebar"><div><a href="https://kimi.com/chat/old"><span>Private Kimi conversation</span></a>
+        <button aria-label="More options">More</button></div></nav>
+    `;
+    const engine = createTestEngine({
+      root: document,
+      location: new URL('https://kimi.com/chat/current') as unknown as Location,
+      storage: createMemoryStorage(normalizeSettings(undefined)),
+    });
+    await engine.start();
+    expect(document.querySelector<HTMLElement>('[data-chatveil-title]')?.dataset.chatveilState).toBe('masked');
+  });
+
   it('recognizes Kimi-style edit/pin/delete menus', async () => {
     document.body.innerHTML = `
       <aside>
@@ -468,7 +680,7 @@ describe('mask engine', () => {
       </aside>
     `;
     const storage = createMemoryStorage(normalizeSettings(undefined));
-    const engine = new MaskEngine({
+    const engine = createTestEngine({
       root: document,
       location: new URL('https://kimi.moonshot.cn/chat/current') as unknown as Location,
       storage,
@@ -502,7 +714,7 @@ describe('mask engine', () => {
       </nav>
     `;
     const storage = createMemoryStorage(normalizeSettings(undefined));
-    const engine = new MaskEngine({
+    const engine = createTestEngine({
       root: document,
       location: new URL('https://claude.ai/chat/current') as unknown as Location,
       storage,
@@ -547,7 +759,7 @@ describe('mask engine', () => {
       </nav>
     `;
     const storage = createMemoryStorage(normalizeSettings({ maskStyle: 'skeleton' }));
-    const engine = new MaskEngine({
+    const engine = createTestEngine({
       root: document,
       location: new URL('https://claude.ai/chat/current') as unknown as Location,
       storage,
@@ -580,7 +792,7 @@ describe('mask engine', () => {
       </nav>
     `;
     const storage = createMemoryStorage(normalizeSettings(undefined));
-    const engine = new MaskEngine({
+    const engine = createTestEngine({
       root: document,
       location: new URL('https://claude.ai/chat/current') as unknown as Location,
       storage,
@@ -640,7 +852,7 @@ describe('mask engine', () => {
       height: 145,
     });
     const storage = createMemoryStorage(normalizeSettings(undefined));
-    const engine = new MaskEngine({
+    const engine = createTestEngine({
       root: document,
       location: new URL('https://claude.ai/chat/current') as unknown as Location,
       storage,
@@ -671,7 +883,7 @@ describe('mask engine', () => {
       </main>
     `;
     const storage = createMemoryStorage(normalizeSettings(undefined));
-    const engine = new MaskEngine({
+    const engine = createTestEngine({
       root: document,
       location: new URL('https://chatgpt.com/c/current') as unknown as Location,
       storage,
@@ -695,7 +907,7 @@ describe('mask engine', () => {
       <button id="detached-menu">⋮</button>
     `;
     const storage = createMemoryStorage(normalizeSettings(undefined));
-    const engine = new MaskEngine({
+    const engine = createTestEngine({
       root: document,
       location: new URL('https://claude.ai/chat/current') as unknown as Location,
       storage,
@@ -738,7 +950,7 @@ describe('mask engine', () => {
       </aside>
     `;
     const storage = createMemoryStorage(normalizeSettings(undefined));
-    const engine = new MaskEngine({
+    const engine = createTestEngine({
       root: document,
       location: new URL('https://aistudio.xiaomimimo.com/chat/current') as unknown as Location,
       storage,
@@ -785,7 +997,7 @@ describe('mask engine', () => {
       height: 40,
     });
     const storage = createMemoryStorage(normalizeSettings(undefined));
-    const engine = new MaskEngine({
+    const engine = createTestEngine({
       root: document,
       location: new URL('https://agent.minimaxi.com/chat?id=399550672560997') as unknown as Location,
       storage,
@@ -820,7 +1032,7 @@ describe('mask engine', () => {
       </aside>
     `;
     const storage = createMemoryStorage(normalizeSettings(undefined));
-    const engine = new MaskEngine({
+    const engine = createTestEngine({
       root: document,
       location: new URL('https://chat.qwen.ai/c/current') as unknown as Location,
       storage,
@@ -866,7 +1078,7 @@ describe('mask engine', () => {
       </aside>
     `;
     const storage = createMemoryStorage(normalizeSettings(undefined));
-    const engine = new MaskEngine({
+    const engine = createTestEngine({
       root: document,
       location: new URL('https://chat.qwen.ai/c/current') as unknown as Location,
       storage,
@@ -897,7 +1109,7 @@ describe('mask engine', () => {
       </aside>
     `;
     const storage = createMemoryStorage(normalizeSettings(undefined));
-    const engine = new MaskEngine({
+    const engine = createTestEngine({
       root: document,
       location: new URL('https://chat.z.ai/') as unknown as Location,
       storage,
@@ -917,7 +1129,7 @@ describe('mask engine', () => {
       </aside>
     `;
     const storage = createMemoryStorage(normalizeSettings(undefined));
-    const engine = new MaskEngine({
+    const engine = createTestEngine({
       root: document,
       location: new URL('https://bot.example/thread/two') as unknown as Location,
       storage,

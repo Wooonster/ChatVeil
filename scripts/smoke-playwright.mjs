@@ -86,6 +86,12 @@ async function titleStates(page) {
         hasParticleLayer: Boolean(particleLayer),
         particleDisplay: particleLayer ? getComputedStyle(particleLayer).display : '',
         particleCount: particleLayer?.querySelectorAll('circle').length ?? 0,
+        particleRingCount: particleLayer?.querySelectorAll('circle[fill="none"]').length ?? 0,
+        particleNodeCount: particleLayer?.querySelectorAll('circle, rect, line').length ?? 0,
+        particleRectCount: particleLayer?.querySelectorAll('rect').length ?? 0,
+        particleLineCount: particleLayer?.querySelectorAll('line').length ?? 0,
+        particlePathCount: particleLayer?.querySelectorAll('path').length ?? 0,
+        particleGroupCount: particleLayer?.querySelectorAll('g').length ?? 0,
       };
     }),
   );
@@ -104,7 +110,7 @@ try {
   assert(old.color === 'rgba(0, 0, 0, 0)' || old.webkitTextFillColor === 'rgba(0, 0, 0, 0)', 'Masked text should be visually transparent.');
   assert(old.hasParticleLayer, 'Dissolve mask should render the SVG particle layer.');
   assert(old.particleDisplay !== 'none', 'Dissolve particle layer should be visible while masked.');
-  assert(old.particleCount >= 90, 'Dissolve particle layer should contain dense particles.');
+  assert(old.particleNodeCount >= 80, 'Dissolve particle layer should contain a thin but substantial particle cloud.');
 
   await page.locator('text=Private research notes').hover();
   await page.waitForFunction(() => {
@@ -135,6 +141,45 @@ try {
   await page.evaluate(() => {
     window.__chatveilMenuCallback?.();
   });
+  for (const style of ['constellation', 'ripple', 'ember']) {
+    await page.selectOption('#chatveil-userscript-panel select[name="style"]', style);
+    await page.waitForFunction(
+      (expectedStyle) => {
+        const target = Array.from(document.querySelectorAll('[data-chatveil-title="true"]')).find(
+          (element) => element.textContent?.trim() === 'Private research notes',
+        );
+        const particleLayer = target?.querySelector('[data-chatveil-particle-layer="true"]');
+        if (target?.dataset.chatveilStyle !== expectedStyle || !particleLayer || getComputedStyle(particleLayer).display === 'none') return false;
+        if (expectedStyle === 'constellation') {
+          return particleLayer.querySelectorAll('path').length >= 10 && particleLayer.querySelectorAll('g').length >= 3;
+        }
+        if (expectedStyle === 'ripple') return particleLayer.querySelectorAll('rect').length >= 50;
+        if (expectedStyle === 'ember') {
+          return (
+            particleLayer.querySelectorAll('circle').length >= 60 &&
+            particleLayer.querySelectorAll('circle[fill="none"]').length >= 25 &&
+            particleLayer.querySelectorAll('rect').length === 0 &&
+            particleLayer.querySelectorAll('line').length === 0
+          );
+        }
+        return true;
+      },
+      style,
+    );
+    const [dynamicState] = (await titleStates(page)).filter((state) => state.text === 'Private research notes');
+    assert((dynamicState?.particleNodeCount ?? 0) + (dynamicState?.particlePathCount ?? 0) >= 40, `${style} mask should render a substantial dynamic SVG layer.`);
+    if (style === 'constellation') {
+      assert(dynamicState.particlePathCount >= 10, 'Constellation mask should include curved connector paths.');
+      assert(dynamicState.particleGroupCount >= 3, 'Constellation mask should include star glyph nodes.');
+    }
+    if (style === 'ripple') assert(dynamicState.particleRectCount >= 50, 'Ripple mask should include dash particles.');
+    if (style === 'ember') {
+      assert(dynamicState.particleCount >= 60, 'Ember mask should include a soft circular particle field.');
+      assert(dynamicState.particleRingCount >= 25, 'Ember mask should include breathing ring particles.');
+      assert(dynamicState.particleRectCount === 0, 'Ember mask should not render rectangular particles.');
+      assert(dynamicState.particleLineCount === 0, 'Ember mask should not render line particles.');
+    }
+  }
   await page.selectOption('#chatveil-userscript-panel select[name="style"]', 'skeleton');
   await page.waitForFunction(() => {
     const target = Array.from(document.querySelectorAll('[data-chatveil-title="true"]')).find(
@@ -148,15 +193,44 @@ try {
 	    menu.setAttribute('role', 'menu');
 	    menu.style.cssText = 'position:absolute;top:80px;left:260px;width:220px;padding:8px;background:white;box-shadow:0 8px 30px rgba(0,0,0,.16);';
 	    menu.innerHTML = `
-      <button role="menuitem">Share</button>
-      <button role="menuitem">Rename</button>
-      <button role="menuitem">Pin chat</button>
-      <button role="menuitem">Archive</button>
-      <button role="menuitem">Delete</button>
+      <style>
+        [role="menu"] button[role="menuitem"]:not([data-chatveil-menu-action]) {
+          box-sizing: border-box; display: flex; align-items: center; gap: 9px;
+          width: 100%; height: 38px; padding: 6px 14px; border: 0; border-radius: 8px;
+          font: 500 13px/20px Arial, sans-serif; color: rgb(42, 43, 44); background: transparent;
+        }
+        [role="menu"] .native-icon { width: 18px; height: 18px; flex: none; }
+      </style>
+      <div role="group"><button role="menuitem"><svg class="native-icon" viewBox="0 0 24 24"><path d="M4 4h12v12H4z"/></svg><span>Rename</span></button><button role="menuitem">Unpin</button><button role="menuitem">Lock chat</button></div>
+      <hr><div role="group"><button role="menuitem">Share</button></div>
+      <hr><div role="group"><button role="menuitem">Archive</button><button role="menuitem">Delete</button></div>
+      <hr><button role="menuitem">Move to project</button>
     `;
     document.body.append(menu);
   });
   await page.waitForSelector('[data-chatveil-menu-action="true"]');
+  assert(await page.locator('[data-chatveil-menu-action="true"] + [role="menuitem"]').textContent() === 'Unpin', 'Title action should appear next to Unpin in the grouped menu.');
+  const alignment = await page.evaluate(() => {
+    const action = document.querySelector('[data-chatveil-menu-action="true"]');
+    const native = Array.from(document.querySelectorAll('[role="menuitem"]')).find((item) => item.textContent?.trim() === 'Rename');
+    const customLabel = action?.querySelector('span:last-child');
+    const nativeLabel = native?.querySelector('span');
+    const customIcon = action?.querySelector('svg');
+    const nativeIcon = native?.querySelector('svg');
+    if (!action || !native || !customLabel || !nativeLabel || !customIcon || !nativeIcon) return null;
+    return {
+      labelOffset: customLabel.getBoundingClientRect().left - nativeLabel.getBoundingClientRect().left,
+      iconOffset: customIcon.getBoundingClientRect().left - nativeIcon.getBoundingClientRect().left,
+      fontSize: getComputedStyle(customLabel).fontSize,
+      nativeFontSize: getComputedStyle(nativeLabel).fontSize,
+      iconSize: customIcon.getBoundingClientRect().width,
+      nativeIconSize: nativeIcon.getBoundingClientRect().width,
+      height: action.getBoundingClientRect().height,
+      nativeHeight: native.getBoundingClientRect().height,
+    };
+  });
+  assert(alignment && Math.abs(alignment.labelOffset) <= 1 && Math.abs(alignment.iconOffset) <= 1, 'Menu label and icon should align with the native item.');
+  assert(alignment.fontSize === alignment.nativeFontSize && alignment.iconSize === alignment.nativeIconSize && Math.abs(alignment.height - alignment.nativeHeight) <= 1, 'Menu typography, icon size, and height should match the native item.');
   await page.locator('[data-chatveil-menu-action="true"]').click();
   await page.waitForFunction(() => {
     const target = Array.from(document.querySelectorAll('[data-chatveil-title="true"]')).find(
@@ -178,7 +252,7 @@ try {
   assert(characterMasked?.afterContent?.includes('#'), 'Character mask pseudo-element should render configured characters.');
   assert(characterMasked?.afterColor !== 'rgba(0, 0, 0, 0)', 'Character mask pseudo-element should be visible.');
 
-  console.log('Playwright smoke passed: dissolve default, hover reveal, userscript style switch, menu pin, and character mode.');
+  console.log('Playwright smoke passed: dissolve default, dynamic styles, hover reveal, userscript style switch, menu pin, and character mode.');
 } finally {
   await browser.close();
 }

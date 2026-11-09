@@ -285,16 +285,12 @@ function ensureTextOnlyElement(row: HTMLElement, forceWrapper = false): HTMLElem
 }
 
 function hasActiveMarker(element: HTMLElement): boolean {
-  const marker = [
-    element.getAttribute('aria-current'),
-    element.getAttribute('data-active'),
-    element.getAttribute('data-current'),
-    element.getAttribute('data-selected'),
-    element.className,
-  ]
-    .join(' ')
-    .toLowerCase();
-  return /\b(page|true|active|current|selected)\b/.test(marker);
+  const ariaCurrent = element.getAttribute('aria-current')?.toLowerCase();
+  const stateAttributes = ['data-active', 'data-current', 'data-selected'];
+  const classes = typeof element.className === 'string' ? element.className.toLowerCase().split(/\s+/) : [];
+  return Boolean(ariaCurrent && ariaCurrent !== 'false') ||
+    stateAttributes.some((name) => element.getAttribute(name)?.toLowerCase() === 'true') ||
+    classes.some((value) => ['active', 'current', 'selected', 'is-active', 'is-current', 'is-selected'].includes(value));
 }
 
 function isCurrentByHref(item: HistoryItem, location: Pick<Location, 'href' | 'pathname' | 'origin'>): boolean {
@@ -503,9 +499,9 @@ export const chatGptAdapter: ChatbotAdapter = {
     return hostMatches(location.hostname, 'chatgpt.com');
   },
   findHistoryItems(root) {
-    return itemsFromAnchors(
+    return itemsFromSidebarAnchors(
       root,
-      (url) => url.hostname.endsWith('chatgpt.com') && /^\/(c|g)\/[^/]+/.test(url.pathname),
+      (url) => hostMatches(url.hostname, 'chatgpt.com') && /^\/(?:c\/[^/]+|g\/[^/]+\/c\/[^/]+)\/?$/.test(url.pathname),
       'chatgpt',
     );
   },

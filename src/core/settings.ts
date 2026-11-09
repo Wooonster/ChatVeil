@@ -1,7 +1,7 @@
 import { DEFAULT_SETTINGS, KNOWN_HOSTS, MAX_CUSTOM_MASK_LENGTH } from './constants';
 import type { MaskSettings, MaskStyle, SiteStatus } from './types';
 
-const maskStyles: MaskStyle[] = ['dissolve', 'skeleton', 'characters', 'blur'];
+const maskStyles: MaskStyle[] = ['dissolve', 'constellation', 'ripple', 'ember', 'skeleton', 'characters', 'blur'];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);

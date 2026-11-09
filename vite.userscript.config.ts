@@ -3,9 +3,10 @@ import { defineConfig } from 'vite';
 const userscriptHeader = `// ==UserScript==
 // @name         ChatVeil
 // @namespace    https://github.com/local/chatveil
-// @version      0.1.0
+// @version      0.2.0
 // @description  Mask non-current chatbot conversation titles with hover reveal and per-title unlocks.
 // @author       ChatVeil contributors
+// @license      MIT
 // @match        https://chatgpt.com/*
 // @match        https://*.chatgpt.com/*
 // @match        https://claude.ai/*
@@ -23,6 +24,8 @@ const userscriptHeader = `// ==UserScript==
 // @match        https://*.hailuoai.video/*
 // @match        https://chat.deepseek.com/*
 // @match        https://kimi.moonshot.cn/*
+// @match        https://kimi.com/*
+// @match        https://*.kimi.com/*
 // @match        https://doubao.com/*
 // @match        https://*.doubao.com/*
 // @match        https://yuanbao.tencent.com/*

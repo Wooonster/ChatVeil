@@ -1,4 +1,4 @@
-export type MaskStyle = 'dissolve' | 'skeleton' | 'characters' | 'blur';
+export type MaskStyle = 'dissolve' | 'constellation' | 'ripple' | 'ember' | 'skeleton' | 'characters' | 'blur';
 
 export interface HistoryItem {
   row: HTMLElement;

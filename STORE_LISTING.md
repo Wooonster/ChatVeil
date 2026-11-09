@@ -10,7 +10,7 @@ Mask chatbot conversation titles by default and reveal them only when needed.
 
 ## Detailed Description
 
-ChatVeil protects privacy in chatbot sidebars by hiding non-current conversation titles. The current conversation remains visible. Other titles use a dynamic dissolve mask by default: particles lightly move while idle, scatter on hover or keyboard focus, and gather back when the title is masked again. Titles can also be permanently unlocked per title from supported chat menus or with a triple-click.
+ChatVeil protects privacy in chatbot sidebars by hiding non-current conversation titles. The current conversation remains visible. Other titles use a dynamic dissolve mask by default: dense particles lightly move while idle, scatter on hover or keyboard focus, and gather back when the title is masked again. Users can also choose Constellation, Ripple, or Ember dynamic masks, or switch to static skeleton, character, and blur modes. Titles can be permanently unlocked per title from supported chat menus or with a triple-click.
 
 Supported known sites include ChatGPT, Claude, Qwen, MiniMax/Hailuo, DeepSeek, Kimi, Doubao, Tencent Yuanbao, Tongyi, ERNIE/Yiyan, Gemini, Copilot, Perplexity, Poe, Mistral, and Grok. Other chatbot sites can be enabled from the popup with a single-site optional permission request.
 
@@ -21,7 +21,7 @@ Privacy commitments:
 - No remote code.
 - No title uploads.
 - Raw titles are not stored.
-- The dissolve effect uses temporary on-page SVG particles, not canvas or remote assets.
+- Dynamic mask effects use temporary on-page SVG particles, not canvas or remote assets.
 
 ## Permission Summary
 

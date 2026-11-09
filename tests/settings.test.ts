@@ -23,6 +23,9 @@ describe('settings normalization', () => {
       },
     });
     expect(normalizeSettings({ maskStyle: 'dissolve' }).maskStyle).toBe('dissolve');
+    expect(normalizeSettings({ maskStyle: 'constellation' }).maskStyle).toBe('constellation');
+    expect(normalizeSettings({ maskStyle: 'ripple' }).maskStyle).toBe('ripple');
+    expect(normalizeSettings({ maskStyle: 'ember' }).maskStyle).toBe('ember');
   });
 
   it('enables known hosts by default and custom hosts only after authorization', () => {

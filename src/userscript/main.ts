@@ -88,6 +88,9 @@ function renderPanel(settings: MaskSettings): HTMLElement {
       Style
       <select name="style">
         <option value="dissolve" ${settings.maskStyle === 'dissolve' ? 'selected' : ''}>Dissolve</option>
+        <option value="constellation" ${settings.maskStyle === 'constellation' ? 'selected' : ''}>Constellation</option>
+        <option value="ripple" ${settings.maskStyle === 'ripple' ? 'selected' : ''}>Ripple</option>
+        <option value="ember" ${settings.maskStyle === 'ember' ? 'selected' : ''}>Ember</option>
         <option value="skeleton" ${settings.maskStyle === 'skeleton' ? 'selected' : ''}>Skeleton</option>
         <option value="characters" ${settings.maskStyle === 'characters' ? 'selected' : ''}>Characters</option>
         <option value="blur" ${settings.maskStyle === 'blur' ? 'selected' : ''}>Blur</option>

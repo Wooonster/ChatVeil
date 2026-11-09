@@ -18,6 +18,7 @@ export const KNOWN_HOSTS = [
   'hailuoai.video',
   'chat.deepseek.com',
   'kimi.moonshot.cn',
+  'kimi.com',
   'doubao.com',
   'www.doubao.com',
   'yuanbao.tencent.com',

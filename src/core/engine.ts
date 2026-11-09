@@ -10,7 +10,10 @@ interface BoundEngineItem {
   title: HTMLElement;
 }
 
-interface DissolveParticle {
+type DynamicMaskStyle = Extract<MaskSettings['maskStyle'], 'dissolve' | 'constellation' | 'ripple' | 'ember'>;
+type DynamicParticleShape = 'dot' | 'node' | 'star' | 'dash' | 'ring' | 'mote';
+
+interface DynamicParticle {
   x: number;
   y: number;
   radius: number;
@@ -18,12 +21,16 @@ interface DissolveParticle {
   phase: number;
   speed: number;
   hop: number;
+  length: number;
+  angle: number;
+  shape: DynamicParticleShape;
   scatterX: number;
   scatterY: number;
-  element: SVGCircleElement;
+  element: SVGElement;
+  lineElement?: SVGElement;
 }
 
-interface DissolveAnimationTarget {
+interface DynamicAnimationTarget {
   animationFrame(now: number): boolean;
   frameInterval(): number;
 }
@@ -35,6 +42,7 @@ const DISSOLVE_REVEAL_MS = 720;
 const DISSOLVE_REMASK_MS = 520;
 const DISSOLVE_IDLE_FRAME_MS = 34;
 const DISSOLVE_VIEWPORT_MARGIN_PX = 180;
+const DYNAMIC_MASK_STYLES: DynamicMaskStyle[] = ['dissolve', 'constellation', 'ripple', 'ember'];
 
 type TitleTransition = 'revealing' | 'remasking';
 
@@ -52,27 +60,26 @@ function normalizeMenuText(text: string): string {
   return text.replace(/[\uE000-\uF8FF]/g, '').replace(/\s+/g, ' ').trim();
 }
 
-function createVisibilityIcon(document: Document, visible: boolean): SVGSVGElement {
+function createTitlePinIcon(document: Document, pinAction: boolean): SVGSVGElement {
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('aria-hidden', 'true');
   svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('width', '16');
+  svg.setAttribute('height', '16');
+  svg.setAttribute('focusable', 'false');
   svg.setAttribute('fill', 'none');
   svg.setAttribute('stroke', 'currentColor');
-  svg.setAttribute('stroke-width', '2');
+  svg.setAttribute('stroke-width', '1.8');
   svg.setAttribute('stroke-linecap', 'round');
   svg.setAttribute('stroke-linejoin', 'round');
 
-  const eye = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-  eye.setAttribute('d', 'M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z');
-  const pupil = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-  pupil.setAttribute('cx', '12');
-  pupil.setAttribute('cy', '12');
-  pupil.setAttribute('r', '2.5');
-  svg.append(eye, pupil);
+  const letters = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  letters.setAttribute('d', 'M4.5 4.5v14.5M4.5 14.5a4 4 0 1 0 8 0a4 4 0 1 0-8 0M15 10.5V19m0-4.5c0-2.4 1.4-4 3.8-4');
+  svg.append(letters);
 
-  if (!visible) {
+  if (!pinAction) {
     const slash = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    slash.setAttribute('d', 'M4 4l16 16');
+    slash.setAttribute('d', 'M3.5 3.5l17 17');
     svg.append(slash);
   }
   return svg;
@@ -163,22 +170,26 @@ function createRandom(seed: number): () => number {
   };
 }
 
-class DissolveParticleScheduler {
+function isDynamicMaskStyle(maskStyle: MaskSettings['maskStyle'] | undefined): maskStyle is DynamicMaskStyle {
+  return DYNAMIC_MASK_STYLES.includes(maskStyle as DynamicMaskStyle);
+}
+
+class DynamicMaskScheduler {
   private readonly window: Window;
-  private readonly targets = new Set<DissolveAnimationTarget>();
-  private readonly lastFrameByTarget = new WeakMap<DissolveAnimationTarget, number>();
+  private readonly targets = new Set<DynamicAnimationTarget>();
+  private readonly lastFrameByTarget = new WeakMap<DynamicAnimationTarget, number>();
   private frameId?: number;
 
   constructor(window: Window) {
     this.window = window;
   }
 
-  add(target: DissolveAnimationTarget): void {
+  add(target: DynamicAnimationTarget): void {
     this.targets.add(target);
     this.schedule();
   }
 
-  delete(target: DissolveAnimationTarget): void {
+  delete(target: DynamicAnimationTarget): void {
     this.targets.delete(target);
     this.lastFrameByTarget.delete(target);
     if (this.targets.size === 0 && this.frameId !== undefined) {
@@ -202,22 +213,23 @@ class DissolveParticleScheduler {
   }
 }
 
-const dissolveSchedulers = new WeakMap<Window, DissolveParticleScheduler>();
+const dynamicSchedulers = new WeakMap<Window, DynamicMaskScheduler>();
 
-function dissolveSchedulerFor(window: Window): DissolveParticleScheduler {
-  const existing = dissolveSchedulers.get(window);
+function dynamicSchedulerFor(window: Window): DynamicMaskScheduler {
+  const existing = dynamicSchedulers.get(window);
   if (existing) return existing;
-  const scheduler = new DissolveParticleScheduler(window);
-  dissolveSchedulers.set(window, scheduler);
+  const scheduler = new DynamicMaskScheduler(window);
+  dynamicSchedulers.set(window, scheduler);
   return scheduler;
 }
 
-class DissolveParticleOverlay implements DissolveAnimationTarget {
+class DynamicMaskOverlay implements DynamicAnimationTarget {
   private readonly title: HTMLElement;
   private readonly svg: SVGSVGElement;
   private readonly group: SVGGElement;
   private readonly random: () => number;
-  private particles: DissolveParticle[] = [];
+  private maskStyle: DynamicMaskStyle;
+  private particles: DynamicParticle[] = [];
   private mode: 'idle' | 'revealing' | 'remasking' | 'hidden' = 'hidden';
   private startedAt = 0;
   private width = 0;
@@ -229,9 +241,10 @@ class DissolveParticleOverlay implements DissolveAnimationTarget {
   private viewportVisible = false;
   private intersectionObserver?: IntersectionObserver;
 
-  constructor(title: HTMLElement, seed: number) {
+  constructor(title: HTMLElement, seed: number, maskStyle: DynamicMaskStyle) {
     this.title = title;
     this.random = createRandom(seed);
+    this.maskStyle = maskStyle;
     this.svg = title.ownerDocument.createElementNS('http://www.w3.org/2000/svg', 'svg');
     this.group = title.ownerDocument.createElementNS('http://www.w3.org/2000/svg', 'g');
     this.svg.append(this.group);
@@ -254,6 +267,15 @@ class DissolveParticleOverlay implements DissolveAnimationTarget {
     setDataset(title, 'ParticleLayer', 'true');
     this.viewportVisible = this.isNearViewport();
     this.observeViewport();
+  }
+
+  setStyle(maskStyle: DynamicMaskStyle): void {
+    if (this.maskStyle === maskStyle) return;
+    this.maskStyle = maskStyle;
+    this.width = 0;
+    this.height = 0;
+    this.group.replaceChildren();
+    this.particles = [];
   }
 
   dispose(): void {
@@ -323,12 +345,12 @@ class DissolveParticleOverlay implements DissolveAnimationTarget {
       return;
     }
     if (!this.viewportVisible && this.mode === 'idle') return;
-    dissolveSchedulerFor(window).add(this);
+    dynamicSchedulerFor(window).add(this);
   }
 
   private stop(): void {
     const window = this.title.ownerDocument.defaultView;
-    if (window) dissolveSchedulerFor(window).delete(this);
+    if (window) dynamicSchedulerFor(window).delete(this);
   }
 
   private now(): number {
@@ -357,21 +379,28 @@ class DissolveParticleOverlay implements DissolveAnimationTarget {
     this.nextColorRefreshAt = 0;
   }
 
-  private createParticles(width: number, height: number): DissolveParticle[] {
+  private createParticles(width: number, height: number): DynamicParticle[] {
     this.group.replaceChildren();
-    const count = Math.round(clamp(width / 0.95, 132, 380));
+    if (this.maskStyle === 'constellation') return this.createConstellationParticles(width, height);
+    if (this.maskStyle === 'ripple') return this.createRippleParticles(width, height);
+    if (this.maskStyle === 'ember') return this.createEmberParticles(width, height);
+    return this.createDissolveParticles(width, height);
+  }
+
+  private createDissolveParticles(width: number, height: number): DynamicParticle[] {
+    const count = Math.round(clamp(width / 1.22, 96, 288));
     const centerY = height / 2;
     const rowGap = clamp(height * 0.27, 6, 10);
-    const amplitude = clamp(height * 0.045, 0.8, 2.1);
-    const particles: DissolveParticle[] = [];
+    const amplitude = clamp(height * 0.04, 0.7, 1.85);
+    const particles: DynamicParticle[] = [];
     for (let index = 0; index < count; index += 1) {
       const progress = count === 1 ? 0 : (index + this.random() * 0.82) / count;
       const density = this.textDensityAt(progress);
       const wave = Math.sin(progress * Math.PI * 3 + this.random() * 0.7) + Math.cos(progress * Math.PI * 5.4) * 0.28;
       const laneRoll = this.random();
       const laneOffset = laneRoll < 0.38 ? -rowGap / 2 : laneRoll < 0.76 ? rowGap / 2 : (this.random() - 0.5) * rowGap * 0.7;
-      const x = progress * width + Math.sin(progress * Math.PI * 8.5) * 1.4 + (this.random() - 0.5) * 8;
-      const y = centerY + laneOffset + wave * amplitude + (this.random() - 0.5) * (3.2 + density * 3.2);
+      const x = progress * width + Math.sin(progress * Math.PI * 8.5) * 1.2 + (this.random() - 0.5) * 7;
+      const y = centerY + laneOffset + wave * amplitude + (this.random() - 0.5) * (2.8 + density * 2.6);
       const fromCenter = x - width / 2;
       const direction = Math.abs(fromCenter) < 1 ? (this.random() > 0.5 ? 1 : -1) : Math.sign(fromCenter);
       const circle = this.title.ownerDocument.createElementNS('http://www.w3.org/2000/svg', 'circle');
@@ -380,14 +409,202 @@ class DissolveParticleOverlay implements DissolveAnimationTarget {
       particles.push({
         x,
         y,
-        radius: (0.34 + this.random() * 0.76) * (0.72 + density * 0.34),
-        alpha: (0.32 + this.random() * 0.62) * (0.36 + density * 0.7),
+        radius: (0.28 + this.random() * 0.62) * (0.68 + density * 0.28),
+        alpha: (0.24 + this.random() * 0.5) * (0.32 + density * 0.62),
         phase: this.random() * Math.PI * 2,
         speed: 0.007 + this.random() * 0.013,
         hop: 0.72 + this.random() * 2.05,
+        length: 0,
+        angle: 0,
+        shape: 'dot',
         scatterX: direction * (16 + this.random() * 62) + (this.random() - 0.5) * 12,
         scatterY: (y - centerY) * 0.85 + (this.random() - 0.5) * 38,
         element: circle,
+      });
+    }
+    return particles;
+  }
+
+  private createConstellationParticles(width: number, height: number): DynamicParticle[] {
+    const count = Math.round(clamp(width / 2.35, 42, 132));
+    const centerY = height / 2;
+    const rowGap = clamp(height * 0.28, 6.5, 11);
+    const chainSize = 5;
+    const chainCount = Math.ceil(count / chainSize);
+    const chains = Array.from({ length: chainCount }, (_, chain) => ({
+      lane: ([-0.58, -0.12, 0.42, 0.08] as const)[chain % 4] + (this.random() - 0.5) * 0.22,
+      arc: clamp(height * (0.045 + this.random() * 0.07), 0.9, 3.8) * (this.random() > 0.48 ? 1 : -1),
+      lean: (this.random() - 0.5) * 5.8,
+      wave: (this.random() - 0.5) * 2.2,
+      phase: this.random() * Math.PI * 2,
+      starTail: this.random() > 0.46,
+    }));
+    const particles: DynamicParticle[] = [];
+    for (let index = 0; index < count; index += 1) {
+      const chain = Math.floor(index / chainSize);
+      const local = index % chainSize;
+      const chainShape = chains[chain];
+      const progress = count === 1 ? 0 : (index + 0.34 + this.random() * 0.28) / count;
+      const density = this.textDensityAt(progress);
+      const laneOffset = (chainShape?.lane ?? 0) * rowGap;
+      const localProgress = local / (chainSize - 1);
+      const arc = Math.sin(localProgress * Math.PI) * (chainShape?.arc ?? 0);
+      const lean = (localProgress - 0.5) * (chainShape?.lean ?? 0);
+      const wave = Math.sin(progress * Math.PI * 2.4 + (chainShape?.phase ?? 0)) * (chainShape?.wave ?? 0);
+      const x = progress * width + lean + Math.sin(chain * 1.7 + (chainShape?.phase ?? 0)) * 1.4 + (this.random() - 0.5) * 2.1;
+      const y = centerY + laneOffset - arc + wave + (this.random() - 0.5) * (1 + density);
+      const fromCenter = x - width / 2;
+      const direction = Math.abs(fromCenter) < 1 ? (this.random() > 0.5 ? 1 : -1) : Math.sign(fromCenter);
+      const line = local > 0 ? this.title.ownerDocument.createElementNS('http://www.w3.org/2000/svg', 'path') : undefined;
+      if (line) {
+        line.setAttribute('vector-effect', 'non-scaling-stroke');
+        line.setAttribute('stroke', 'currentColor');
+        line.setAttribute('stroke-linecap', 'round');
+        line.setAttribute('fill', 'none');
+        this.group.append(line);
+      }
+      const isStar = local === 0 || (local === chainSize - 1 && Boolean(chainShape?.starTail));
+      const element = isStar ? this.createStarNode() : this.title.ownerDocument.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      element.setAttribute('vector-effect', 'non-scaling-stroke');
+      this.group.append(element);
+      particles.push({
+        x,
+        y,
+        radius: (isStar ? 1.35 + this.random() * 0.58 : 0.62 + this.random() * 0.74) * (0.76 + density * 0.22),
+        alpha: (isStar ? 0.62 + this.random() * 0.3 : 0.28 + this.random() * 0.44) * (0.58 + density * 0.38),
+        phase: this.random() * Math.PI * 2,
+        speed: 0.0022 + this.random() * 0.0046,
+        hop: 0.22 + this.random() * 0.64,
+        length: 1,
+        angle: -18 + this.random() * 36,
+        shape: isStar ? 'star' : 'node',
+        scatterX: direction * (18 + this.random() * 56) + Math.sin(progress * Math.PI * 4) * 9,
+        scatterY: (y - centerY) * 0.9 + (this.random() - 0.5) * 34,
+        element,
+        lineElement: line,
+      });
+    }
+    return particles;
+  }
+
+  private createStarNode(): SVGGElement {
+    const group = this.title.ownerDocument.createElementNS('http://www.w3.org/2000/svg', 'g');
+    const halo = this.title.ownerDocument.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    halo.setAttribute('cx', '0');
+    halo.setAttribute('cy', '0');
+    halo.setAttribute('r', '2.35');
+    halo.setAttribute('fill', 'none');
+    halo.setAttribute('stroke', 'currentColor');
+    halo.setAttribute('stroke-width', '0.24');
+    halo.setAttribute('opacity', '0.36');
+    const core = this.title.ownerDocument.createElementNS('http://www.w3.org/2000/svg', 'path');
+    core.setAttribute('d', 'M0 -3.1 L0.74 -0.74 L3.1 0 L0.74 0.74 L0 3.1 L-0.74 0.74 L-3.1 0 L-0.74 -0.74 Z');
+    core.setAttribute('stroke', 'none');
+    const horizontal = this.title.ownerDocument.createElementNS('http://www.w3.org/2000/svg', 'line');
+    horizontal.setAttribute('x1', '-4.25');
+    horizontal.setAttribute('x2', '4.25');
+    horizontal.setAttribute('y1', '0');
+    horizontal.setAttribute('y2', '0');
+    const vertical = this.title.ownerDocument.createElementNS('http://www.w3.org/2000/svg', 'line');
+    vertical.setAttribute('x1', '0');
+    vertical.setAttribute('x2', '0');
+    vertical.setAttribute('y1', '-4.25');
+    vertical.setAttribute('y2', '4.25');
+    for (const ray of [horizontal, vertical]) {
+      ray.setAttribute('stroke', 'currentColor');
+      ray.setAttribute('stroke-width', '0.34');
+      ray.setAttribute('opacity', '0.54');
+      ray.setAttribute('stroke-linecap', 'round');
+      ray.setAttribute('vector-effect', 'non-scaling-stroke');
+    }
+    group.append(halo, horizontal, vertical, core);
+    return group;
+  }
+
+  private createRippleParticles(width: number, height: number): DynamicParticle[] {
+    const count = Math.round(clamp(width / 2.05, 56, 168));
+    const centerY = height / 2;
+    const rowGap = clamp(height * 0.26, 6, 10.5);
+    const laneOffsets = [-0.62, 0.08, 0.74];
+    const particles: DynamicParticle[] = [];
+    for (let index = 0; index < count; index += 1) {
+      const progress = count === 1 ? 0 : (index + this.random() * 0.62) / count;
+      const density = this.textDensityAt(progress);
+      const lane = index % laneOffsets.length;
+      const laneOffset = laneOffsets[lane] * rowGap;
+      const x = progress * width + (this.random() - 0.5) * 3.4;
+      const y =
+        centerY +
+        laneOffset +
+        Math.sin(progress * Math.PI * 3.2 + lane * 0.76) * clamp(height * 0.044, 0.7, 1.9) +
+        (this.random() - 0.5) * (1.1 + density * 1.2);
+      const rect = this.title.ownerDocument.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      rect.setAttribute('vector-effect', 'non-scaling-stroke');
+      this.group.append(rect);
+      particles.push({
+        x,
+        y,
+        radius: (0.42 + this.random() * 0.52) * (0.74 + density * 0.26),
+        alpha: (0.18 + this.random() * 0.42) * (0.42 + density * 0.58),
+        phase: this.random() * Math.PI * 2,
+        speed: 0.0038 + this.random() * 0.008,
+        hop: 0.32 + this.random() * 0.82,
+        length: (4.2 + this.random() * 5.8) * (0.82 + density * 0.28),
+        angle: (this.random() - 0.5) * 5.2,
+        shape: 'dash',
+        scatterX: (this.random() - 0.5) * 42 + Math.sin(progress * Math.PI * 2) * 12,
+        scatterY: (laneOffset >= 0 ? 1 : -1) * (10 + this.random() * 26) + (this.random() - 0.5) * 9,
+        element: rect,
+      });
+    }
+    return particles;
+  }
+
+  private createEmberParticles(width: number, height: number): DynamicParticle[] {
+    const count = Math.round(clamp(width / 1.42, 74, 220));
+    const centerY = height / 2;
+    const rowGap = clamp(height * 0.29, 6.5, 11.5);
+    const lanes = [-0.64, -0.18, 0.28, 0.72];
+    const particles: DynamicParticle[] = [];
+    for (let index = 0; index < count; index += 1) {
+      const progress = count === 1 ? 0 : (index + this.random() * 0.82) / count;
+      const density = this.textDensityAt(progress);
+      const roll = this.random();
+      const shape: DynamicParticleShape = roll < 0.58 ? 'ring' : 'mote';
+      const lane = lanes[index % lanes.length] + (this.random() - 0.5) * 0.16;
+      const plume = Math.sin(progress * Math.PI * 4.1 + lane * 1.7 + this.random() * 0.8);
+      const x = progress * width + Math.sin(progress * Math.PI * 5.2) * 1.6 + (this.random() - 0.5) * 5.8;
+      const y =
+        centerY +
+        lane * rowGap +
+        plume * clamp(height * 0.052, 0.9, 2.35) +
+        Math.sin(progress * Math.PI * 2.8 + this.random()) * clamp(height * 0.03, 0.5, 1.25) +
+        (this.random() - 0.5) * (1.8 + density * 1.2);
+      const element = this.title.ownerDocument.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      element.setAttribute('vector-effect', 'non-scaling-stroke');
+      if (shape === 'ring') {
+        element.setAttribute('stroke', 'currentColor');
+        element.setAttribute('fill', 'none');
+      } else {
+        element.setAttribute('stroke', 'none');
+      }
+      this.group.append(element);
+      const fromCenter = x - width / 2;
+      const direction = Math.abs(fromCenter) < 1 ? (this.random() > 0.5 ? 1 : -1) : Math.sign(fromCenter);
+      particles.push({
+        x,
+        y,
+        radius: (shape === 'ring' ? 0.82 + this.random() * 1.08 : 0.32 + this.random() * 0.58) * (0.72 + density * 0.26),
+        alpha: (shape === 'ring' ? 0.18 + this.random() * 0.34 : 0.2 + this.random() * 0.4) * (0.44 + density * 0.52),
+        phase: this.random() * Math.PI * 2,
+        speed: 0.0048 + this.random() * 0.0105,
+        hop: (shape === 'ring' ? 0.7 + this.random() * 1.8 : 0.5 + this.random() * 1.5) * (0.86 + density * 0.22),
+        length: (shape === 'ring' ? 2.6 + this.random() * 3.8 : 1.4 + this.random() * 2.6) * (0.82 + density * 0.22),
+        angle: this.random() * Math.PI * 2,
+        shape,
+        scatterX: direction * (18 + this.random() * 48) + Math.cos(progress * Math.PI * 4 + lane) * 10,
+        scatterY: (y - centerY) * 0.46 + Math.sin(progress * Math.PI * 3 + lane) * 14 - (shape === 'ring' ? 8 + this.random() * 18 : 5 + this.random() * 14),
+        element,
       });
     }
     return particles;
@@ -412,25 +629,51 @@ class DissolveParticleOverlay implements DissolveAnimationTarget {
     const eased = easeOutQuart(progress);
     const idleTime = timestamp;
 
-    this.group.setAttribute('fill', this.particleColor(idleTime));
+    const color = this.particleColor(idleTime);
+    this.group.setAttribute('fill', color);
+    this.group.style.color = color;
+    if (this.maskStyle === 'constellation') {
+      this.drawConstellation(idleTime, eased);
+      return;
+    }
+    if (this.maskStyle === 'ripple') {
+      this.drawRipple(idleTime, eased);
+      return;
+    }
+    if (this.maskStyle === 'ember') {
+      this.drawEmber(idleTime, eased);
+      return;
+    }
+    this.drawDissolve(idleTime, eased);
+  }
+
+  private transitionScalars(eased: number): { scatter: number; alphaScale: number; radiusScale: number } {
+    if (this.mode === 'revealing') {
+      return {
+        scatter: eased,
+        alphaScale: Math.pow(1 - eased, 0.72),
+        radiusScale: 1 + eased * 0.45,
+      };
+    }
+    if (this.mode === 'remasking') {
+      const scatter = 1 - eased;
+      return {
+        scatter,
+        alphaScale: Math.max(0.18, eased),
+        radiusScale: 1 + scatter * 0.42,
+      };
+    }
+    return { scatter: 0, alphaScale: 1, radiusScale: 1 };
+  }
+
+  private drawDissolve(idleTime: number, eased: number): void {
+    const { scatter, alphaScale, radiusScale } = this.transitionScalars(eased);
     for (const particle of this.particles) {
       const wave = Math.sin(idleTime * particle.speed + particle.phase);
       const drift = Math.cos(idleTime * particle.speed * 0.58 + particle.phase);
       const shimmer = Math.sin(idleTime * particle.speed * 2.35 + particle.phase * 0.7);
       const jitterX = wave * 1.12 + drift * 0.52;
       const jitterY = drift * 0.78 - Math.max(0, wave) * particle.hop + shimmer * 0.24;
-      let scatter = 0;
-      let alphaScale = 1;
-      let radiusScale = 1;
-      if (this.mode === 'revealing') {
-        scatter = eased;
-        alphaScale = Math.pow(1 - eased, 0.72);
-        radiusScale = 1 + eased * 0.45;
-      } else if (this.mode === 'remasking') {
-        scatter = 1 - eased;
-        alphaScale = Math.max(0.18, eased);
-        radiusScale = 1 + scatter * 0.42;
-      }
       const x = particle.x + jitterX + particle.scatterX * scatter;
       const y = particle.y + jitterY + particle.scatterY * scatter;
       const alpha = particle.alpha * alphaScale * (0.9 + shimmer * 0.1);
@@ -441,6 +684,111 @@ class DissolveParticleOverlay implements DissolveAnimationTarget {
       particle.element.setAttribute('cx', x.toFixed(2));
       particle.element.setAttribute('cy', y.toFixed(2));
       particle.element.setAttribute('r', (particle.radius * radiusScale * (1 + shimmer * 0.045)).toFixed(2));
+      particle.element.setAttribute('opacity', alpha.toFixed(3));
+    }
+  }
+
+  private drawConstellation(idleTime: number, eased: number): void {
+    const { scatter, alphaScale, radiusScale } = this.transitionScalars(eased);
+    const positions: { x: number; y: number; alpha: number }[] = [];
+    for (const particle of this.particles) {
+      const orbit = Math.sin(idleTime * particle.speed + particle.phase);
+      const counter = Math.cos(idleTime * particle.speed * 0.72 + particle.phase);
+      const pulse = Math.sin(idleTime * particle.speed * 1.8 + particle.phase);
+      const x = particle.x + orbit * 0.72 + counter * 0.32 + particle.scatterX * scatter;
+      const y = particle.y + counter * 0.62 - Math.max(0, orbit) * particle.hop * 0.42 + particle.scatterY * scatter;
+      const alpha = particle.alpha * alphaScale * (0.88 + pulse * 0.12);
+      positions.push({ x, y, alpha });
+      if (alpha <= 0.015) {
+        particle.element.setAttribute('opacity', '0');
+        particle.lineElement?.setAttribute('opacity', '0');
+        continue;
+      }
+      if (particle.shape === 'star') {
+        const starScale = radiusScale * (0.68 + Math.max(0, pulse) * 0.12);
+        particle.element.setAttribute(
+          'transform',
+          `translate(${x.toFixed(2)} ${y.toFixed(2)}) rotate(${(particle.angle + orbit * 7).toFixed(2)}) scale(${starScale.toFixed(2)})`,
+        );
+      } else {
+        particle.element.setAttribute('cx', x.toFixed(2));
+        particle.element.setAttribute('cy', y.toFixed(2));
+        particle.element.setAttribute('r', (particle.radius * radiusScale * (1 + pulse * 0.055)).toFixed(2));
+      }
+      particle.element.setAttribute('opacity', alpha.toFixed(3));
+    }
+    for (let index = 1; index < this.particles.length; index += 1) {
+      const particle = this.particles[index];
+      if (!particle.lineElement) continue;
+      const previous = positions[index - 1];
+      const current = positions[index];
+      if (!previous || !current || previous.alpha <= 0.02 || current.alpha <= 0.02) {
+        particle.lineElement.setAttribute('opacity', '0');
+        continue;
+      }
+      const bow = (particle.angle / 18) * (1 - scatter * 0.56);
+      const midX = (previous.x + current.x) / 2;
+      const midY = (previous.y + current.y) / 2 - bow;
+      const lineAlpha = Math.min(previous.alpha, current.alpha) * 0.22 * (1 - scatter * 0.86);
+      particle.lineElement.setAttribute(
+        'd',
+        `M ${previous.x.toFixed(2)} ${previous.y.toFixed(2)} Q ${midX.toFixed(2)} ${midY.toFixed(2)} ${current.x.toFixed(2)} ${current.y.toFixed(2)}`,
+      );
+      particle.lineElement.setAttribute('stroke-width', (0.24 + particle.radius * 0.08).toFixed(2));
+      particle.lineElement.setAttribute('opacity', Math.max(0, lineAlpha).toFixed(3));
+    }
+  }
+
+  private drawRipple(idleTime: number, eased: number): void {
+    const { scatter, alphaScale, radiusScale } = this.transitionScalars(eased);
+    for (const particle of this.particles) {
+      const wave = Math.sin(idleTime * particle.speed + particle.phase + particle.x * 0.018);
+      const cross = Math.cos(idleTime * particle.speed * 0.65 + particle.phase);
+      const shimmer = Math.sin(idleTime * particle.speed * 2.1 + particle.phase);
+      const x = particle.x + cross * 0.52 + particle.scatterX * scatter;
+      const y = particle.y + wave * (1.05 + particle.hop * 0.22) + particle.scatterY * scatter;
+      const dashWidth = particle.length * (1 + Math.max(0, wave) * 0.12 + scatter * 0.2);
+      const dashHeight = particle.radius * radiusScale * (1.05 + shimmer * 0.05);
+      const alpha = particle.alpha * alphaScale * (0.82 + Math.max(0, shimmer) * 0.14);
+      if (alpha <= 0.015) {
+        particle.element.setAttribute('opacity', '0');
+        continue;
+      }
+      particle.element.setAttribute('x', (x - dashWidth / 2).toFixed(2));
+      particle.element.setAttribute('y', (y - dashHeight / 2).toFixed(2));
+      particle.element.setAttribute('width', dashWidth.toFixed(2));
+      particle.element.setAttribute('height', dashHeight.toFixed(2));
+      particle.element.setAttribute('rx', (dashHeight / 2).toFixed(2));
+      particle.element.setAttribute('opacity', alpha.toFixed(3));
+      particle.element.setAttribute('transform', `rotate(${(particle.angle + wave * 1.8).toFixed(2)} ${x.toFixed(2)} ${y.toFixed(2)})`);
+    }
+  }
+
+  private drawEmber(idleTime: number, eased: number): void {
+    const { scatter, alphaScale, radiusScale } = this.transitionScalars(eased);
+    for (const particle of this.particles) {
+      const breath = Math.sin(idleTime * particle.speed + particle.phase);
+      const counter = Math.cos(idleTime * particle.speed * 0.68 + particle.phase * 1.42);
+      const pulse = Math.sin(idleTime * particle.speed * 1.7 + particle.phase * 0.74);
+      const swirl = Math.sin(idleTime * particle.speed * 0.38 + particle.angle);
+      const x = particle.x + counter * 0.58 + swirl * 0.38 + particle.scatterX * scatter;
+      const y =
+        particle.y -
+        Math.max(0, breath) * particle.hop * (particle.shape === 'ring' ? 0.44 : 0.58) +
+        pulse * (particle.shape === 'ring' ? 0.2 : 0.28) +
+        particle.scatterY * scatter;
+      const expand = 1 + scatter * (particle.shape === 'ring' ? 1.18 : 0.62);
+      const alpha = particle.alpha * alphaScale * (0.72 + Math.max(0, pulse) * 0.24 + Math.max(0, breath) * 0.08);
+      if (alpha <= 0.015) {
+        particle.element.setAttribute('opacity', '0');
+        continue;
+      }
+      particle.element.setAttribute('cx', x.toFixed(2));
+      particle.element.setAttribute('cy', y.toFixed(2));
+      particle.element.setAttribute('r', (particle.radius * radiusScale * expand * (1 + Math.max(0, pulse) * 0.12)).toFixed(2));
+      if (particle.shape === 'ring') {
+        particle.element.setAttribute('stroke-width', (0.22 + particle.radius * 0.16 + scatter * 0.08).toFixed(2));
+      }
       particle.element.setAttribute('opacity', alpha.toFixed(3));
     }
   }
@@ -561,12 +909,33 @@ function buildStyle(): string {
   color: inherit !important;
   -webkit-text-fill-color: transparent !important;
 }
+[data-${DATA_PREFIX}-title="true"][data-${DATA_PREFIX}-state="masked"][data-${DATA_PREFIX}-style="constellation"],
+[data-${DATA_PREFIX}-title="true"][data-${DATA_PREFIX}-state="masked"][data-${DATA_PREFIX}-style="ripple"],
+[data-${DATA_PREFIX}-title="true"][data-${DATA_PREFIX}-state="masked"][data-${DATA_PREFIX}-style="ember"] {
+  color: inherit !important;
+  -webkit-text-fill-color: transparent !important;
+  filter: none !important;
+}
 [data-${DATA_PREFIX}-title="true"][data-${DATA_PREFIX}-style="dissolve"][data-${DATA_PREFIX}-transition="revealing"] {
   color: inherit !important;
   -webkit-text-fill-color: transparent !important;
   filter: none !important;
 }
+[data-${DATA_PREFIX}-title="true"][data-${DATA_PREFIX}-style="constellation"][data-${DATA_PREFIX}-transition="revealing"],
+[data-${DATA_PREFIX}-title="true"][data-${DATA_PREFIX}-style="ripple"][data-${DATA_PREFIX}-transition="revealing"],
+[data-${DATA_PREFIX}-title="true"][data-${DATA_PREFIX}-style="ember"][data-${DATA_PREFIX}-transition="revealing"] {
+  color: inherit !important;
+  -webkit-text-fill-color: transparent !important;
+  filter: none !important;
+}
 [data-${DATA_PREFIX}-title="true"][data-${DATA_PREFIX}-style="dissolve"][data-${DATA_PREFIX}-transition="remasking"] {
+  color: inherit !important;
+  -webkit-text-fill-color: currentColor !important;
+  filter: none !important;
+}
+[data-${DATA_PREFIX}-title="true"][data-${DATA_PREFIX}-style="constellation"][data-${DATA_PREFIX}-transition="remasking"],
+[data-${DATA_PREFIX}-title="true"][data-${DATA_PREFIX}-style="ripple"][data-${DATA_PREFIX}-transition="remasking"],
+[data-${DATA_PREFIX}-title="true"][data-${DATA_PREFIX}-style="ember"][data-${DATA_PREFIX}-transition="remasking"] {
   color: inherit !important;
   -webkit-text-fill-color: currentColor !important;
   filter: none !important;
@@ -731,15 +1100,21 @@ function buildStyle(): string {
 [data-${DATA_PREFIX}-menu-action="true"] {
   display: flex !important;
   align-items: center !important;
-  gap: 12px !important;
+  gap: var(--chatveil-menu-gap, 6px) !important;
   width: 100% !important;
-  min-height: 40px !important;
+  min-height: var(--chatveil-menu-height, 40px) !important;
+  box-sizing: border-box !important;
   border: 0 !important;
-  border-radius: 6px !important;
-  padding: 8px 12px !important;
-  color: inherit !important;
+  border-radius: var(--chatveil-menu-radius, 6px) !important;
+  padding: var(--chatveil-menu-padding, 8px 10px) !important;
+  color: var(--chatveil-menu-color, inherit) !important;
   background: transparent !important;
-  font: inherit !important;
+  font-family: var(--chatveil-menu-font-family, inherit) !important;
+  font-size: var(--chatveil-menu-font-size, inherit) !important;
+  font-style: var(--chatveil-menu-font-style, inherit) !important;
+  font-weight: var(--chatveil-menu-font-weight, inherit) !important;
+  line-height: var(--chatveil-menu-line-height, inherit) !important;
+  letter-spacing: var(--chatveil-menu-letter-spacing, normal) !important;
   text-align: left !important;
   cursor: pointer !important;
 }
@@ -750,16 +1125,21 @@ function buildStyle(): string {
 }
 [data-${DATA_PREFIX}-menu-action-icon="true"] {
   display: inline-flex !important;
-  width: 20px !important;
-  flex: 0 0 20px !important;
+  width: var(--chatveil-menu-icon-size, 20px) !important;
+  flex: 0 0 var(--chatveil-menu-icon-size, 20px) !important;
   align-items: center !important;
   justify-content: center !important;
   color: inherit !important;
 }
 [data-${DATA_PREFIX}-menu-action-icon="true"] svg {
-  width: 18px !important;
-  height: 18px !important;
   display: block !important;
+  width: var(--chatveil-menu-glyph-size, 16px) !important;
+  height: var(--chatveil-menu-glyph-size, 16px) !important;
+  min-width: var(--chatveil-menu-glyph-size, 16px) !important;
+  min-height: var(--chatveil-menu-glyph-size, 16px) !important;
+  max-width: var(--chatveil-menu-glyph-size, 16px) !important;
+  max-height: var(--chatveil-menu-glyph-size, 16px) !important;
+  flex: none !important;
 }
 @keyframes chatveil-dissolve-hop-a {
   0% {
@@ -950,13 +1330,15 @@ export class MaskEngine {
   private readonly rowBindings = new WeakMap<HTMLElement, BoundEngineItem>();
   private readonly boundRows = new WeakSet<HTMLElement>();
   private readonly titleTransitionTimers = new WeakMap<HTMLElement, number>();
-  private readonly dissolveOverlays = new WeakMap<HTMLElement, DissolveParticleOverlay>();
+  private readonly dynamicOverlays = new WeakMap<HTMLElement, DynamicMaskOverlay>();
   private readonly activeRevealKeys = new Set<string>();
   private readonly documentMenuListener = (event: Event) => {
     this.rememberMenuRowFromDocument(event);
   };
   private lastMenuRow?: HTMLElement;
   private lastMenuRowAt = 0;
+  private lastMenuTrigger?: HTMLElement;
+  private associatedMenu?: HTMLElement;
   private observer?: MutationObserver;
   private settings?: MaskSettings;
   private refreshQueued = false;
@@ -977,7 +1359,6 @@ export class MaskEngine {
       this.stopped = false;
       this.injectStyle();
       this.settings = await this.storage.getSettings();
-      await this.rescan();
       if (this.stopped) return;
       this.observer = new MutationObserver((records) => {
         if (this.shouldRefreshForMutations(records)) this.queueRefresh();
@@ -992,6 +1373,7 @@ export class MaskEngine {
       this.document.addEventListener('pointerdown', this.documentMenuListener, true);
       this.document.addEventListener('click', this.documentMenuListener, true);
       this.document.addEventListener('contextmenu', this.documentMenuListener, true);
+      await this.rescan();
     } catch (error) {
       this.handleError(error);
     }
@@ -1005,6 +1387,7 @@ export class MaskEngine {
     this.document.removeEventListener('click', this.documentMenuListener, true);
     this.document.removeEventListener('contextmenu', this.documentMenuListener, true);
     this.clearMarkedTitles();
+    this.cleanupMenuActions([]);
   }
 
   async refresh(): Promise<void> {
@@ -1041,12 +1424,16 @@ export class MaskEngine {
   private shouldRefreshForMutations(records: MutationRecord[]): boolean {
     const stateClassPattern = /\b(active|current|selected|open|expanded)\b/i;
     const elementCtor = this.document.defaultView?.HTMLElement;
+    const domElementCtor = this.document.defaultView?.Element;
+    if (!domElementCtor) return false;
     for (const record of records) {
       if (record.type === 'childList') {
+        const target = record.target;
+        if (target instanceof domElementCtor && target.closest(`[data-${DATA_PREFIX}-particle-layer="true"], [data-${DATA_PREFIX}-menu-action="true"]`)) continue;
         const changedNodes = [...Array.from(record.addedNodes), ...Array.from(record.removedNodes)];
         if (
           changedNodes.some(
-            (node) => !elementCtor || !(node instanceof elementCtor) || !node.matches(`[data-${DATA_PREFIX}-menu-action="true"]`),
+            (node) => !(node instanceof domElementCtor) || !node.matches(`[data-${DATA_PREFIX}-menu-action="true"], [data-${DATA_PREFIX}-particle-layer="true"]`),
           )
         ) {
           return true;
@@ -1083,7 +1470,7 @@ export class MaskEngine {
       deleteDataset(element, 'Current');
       deleteDataset(element, 'Seed');
       this.clearTitleTransition(element);
-      this.removeDissolveOverlay(element);
+      this.removeDynamicOverlay(element);
       this.clearTitleClip(element);
     }
     for (const element of Array.from(this.document.querySelectorAll<HTMLElement>(`[data-${DATA_PREFIX}-row="true"]`))) {
@@ -1099,6 +1486,7 @@ export class MaskEngine {
     const status = getSiteStatus(settings, this.location.hostname);
     if (!status.enabled || !canRunOnHost(settings, this.location.hostname)) {
       this.clearMarkedTitles();
+      this.cleanupMenuActions([]);
       return;
     }
 
@@ -1134,7 +1522,7 @@ export class MaskEngine {
         deleteDataset(element, 'Current');
         deleteDataset(element, 'Seed');
         this.clearTitleTransition(element);
-        this.removeDissolveOverlay(element);
+        this.removeDynamicOverlay(element);
         this.clearTitleClip(element);
       }
     }
@@ -1158,7 +1546,7 @@ export class MaskEngine {
     setDataset(item.title, 'Seed', dissolveSeedFor(hashedKey));
     this.clearTitleTransition(item.title);
     this.applyTitleClipState(item.title, isVisible ? 'visible' : 'masked');
-    this.syncDissolveOverlay(item.title, settings.maskStyle, hashedKey, isVisible ? 'visible' : 'masked');
+    this.syncDynamicOverlay(item.title, settings.maskStyle, hashedKey, isVisible ? 'visible' : 'masked');
     this.rowBindings.set(item.row, {
       host: this.location.hostname.toLowerCase(),
       hashedKey,
@@ -1212,7 +1600,7 @@ export class MaskEngine {
     const binding = this.rowBindings.get(row);
     if (!binding) return;
     this.activeRevealKeys.add(binding.hashedKey);
-    const transition = this.shouldAnimateDissolve(binding.title, 'revealing') ? 'revealing' : undefined;
+    const transition = this.shouldAnimateDynamicMask(binding.title, 'revealing') ? 'revealing' : undefined;
     this.setBoundTitleState(binding, 'visible', transition);
   }
 
@@ -1225,7 +1613,7 @@ export class MaskEngine {
       this.setBoundTitleState(binding, 'visible');
       return;
     }
-    const transition = this.shouldAnimateDissolve(binding.title, 'remasking') ? 'remasking' : undefined;
+    const transition = this.shouldAnimateDynamicMask(binding.title, 'remasking') ? 'remasking' : undefined;
     this.setBoundTitleState(binding, 'masked', transition);
   }
 
@@ -1242,11 +1630,11 @@ export class MaskEngine {
     this.clearTitleTransition(binding.title);
     setDataset(binding.title, 'State', state);
     this.applyTitleClipState(binding.title, state);
-    this.syncBoundDissolveOverlay(binding, state);
+    this.syncBoundDynamicOverlay(binding, state);
   }
 
-  private shouldAnimateDissolve(title: HTMLElement, transition: TitleTransition): boolean {
-    if (title.dataset[`${DATA_PREFIX}Style`] !== 'dissolve') return false;
+  private shouldAnimateDynamicMask(title: HTMLElement, transition: TitleTransition): boolean {
+    if (!isDynamicMaskStyle(title.dataset[`${DATA_PREFIX}Style`] as MaskSettings['maskStyle'] | undefined)) return false;
     if (transition === 'revealing') {
       return title.dataset[`${DATA_PREFIX}State`] === 'masked' || title.dataset[`${DATA_PREFIX}Transition`] === 'remasking';
     }
@@ -1261,7 +1649,7 @@ export class MaskEngine {
     setDataset(title, 'State', wasRemaskingVisible ? 'visible' : 'masked');
     setDataset(title, 'Transition', 'revealing');
     this.applyTitleClipState(title, wasRemaskingVisible ? 'visible' : 'masked');
-    this.getDissolveOverlay(title)?.reveal();
+    this.getDynamicOverlay(title)?.reveal();
     this.scheduleTitleTransition(title, DISSOLVE_REVEAL_MS, () => {
       if (this.stopped || !this.document.documentElement.contains(title)) return;
       if (title.dataset[`${DATA_PREFIX}Transition`] !== 'revealing') return;
@@ -1269,7 +1657,7 @@ export class MaskEngine {
       const nextState = this.shouldKeepBoundTitleVisible(binding) ? 'visible' : 'masked';
       setDataset(title, 'State', nextState);
       this.applyTitleClipState(title, nextState);
-      this.syncBoundDissolveOverlay(binding, nextState);
+      this.syncBoundDynamicOverlay(binding, nextState);
     });
   }
 
@@ -1280,7 +1668,7 @@ export class MaskEngine {
     setDataset(title, 'State', wasVisible ? 'visible' : 'masked');
     setDataset(title, 'Transition', 'remasking');
     this.applyTitleClipState(title, wasVisible ? 'visible' : 'masked');
-    this.getDissolveOverlay(title)?.remask();
+    this.getDynamicOverlay(title)?.remask();
     this.scheduleTitleTransition(title, DISSOLVE_REMASK_MS, () => {
       if (this.stopped || !this.document.documentElement.contains(title)) return;
       if (title.dataset[`${DATA_PREFIX}Transition`] !== 'remasking') return;
@@ -1288,12 +1676,12 @@ export class MaskEngine {
       const nextState = this.shouldKeepBoundTitleVisible(binding) ? 'visible' : 'masked';
       setDataset(title, 'State', nextState);
       this.applyTitleClipState(title, nextState);
-      this.syncBoundDissolveOverlay(binding, nextState);
+      this.syncBoundDynamicOverlay(binding, nextState);
     });
   }
 
-  private syncBoundDissolveOverlay(binding: BoundEngineItem, state: 'visible' | 'masked'): void {
-    this.syncDissolveOverlay(
+  private syncBoundDynamicOverlay(binding: BoundEngineItem, state: 'visible' | 'masked'): void {
+    this.syncDynamicOverlay(
       binding.title,
       (binding.title.dataset[`${DATA_PREFIX}Style`] as MaskSettings['maskStyle'] | undefined) ?? 'dissolve',
       binding.hashedKey,
@@ -1301,40 +1689,43 @@ export class MaskEngine {
     );
   }
 
-  private syncDissolveOverlay(
+  private syncDynamicOverlay(
     title: HTMLElement,
     maskStyle: MaskSettings['maskStyle'],
     hashedKey: string,
     state: 'visible' | 'masked',
   ): void {
-    if (maskStyle !== 'dissolve' || isJsdomDocument(this.document)) {
-      this.removeDissolveOverlay(title);
+    if (!isDynamicMaskStyle(maskStyle) || isJsdomDocument(this.document)) {
+      this.removeDynamicOverlay(title);
       return;
     }
     if (state === 'visible') {
-      this.getDissolveOverlay(title)?.hide();
+      this.getDynamicOverlay(title)?.hide();
       return;
     }
-    this.ensureDissolveOverlay(title, numericSeedFor(hashedKey)).idle();
+    this.ensureDynamicOverlay(title, numericSeedFor(hashedKey), maskStyle).idle();
   }
 
-  private ensureDissolveOverlay(title: HTMLElement, seed: number): DissolveParticleOverlay {
-    const existing = this.dissolveOverlays.get(title);
-    if (existing) return existing;
-    const overlay = new DissolveParticleOverlay(title, seed);
-    this.dissolveOverlays.set(title, overlay);
+  private ensureDynamicOverlay(title: HTMLElement, seed: number, maskStyle: DynamicMaskStyle): DynamicMaskOverlay {
+    const existing = this.dynamicOverlays.get(title);
+    if (existing) {
+      existing.setStyle(maskStyle);
+      return existing;
+    }
+    const overlay = new DynamicMaskOverlay(title, seed, maskStyle);
+    this.dynamicOverlays.set(title, overlay);
     return overlay;
   }
 
-  private getDissolveOverlay(title: HTMLElement): DissolveParticleOverlay | undefined {
-    return this.dissolveOverlays.get(title);
+  private getDynamicOverlay(title: HTMLElement): DynamicMaskOverlay | undefined {
+    return this.dynamicOverlays.get(title);
   }
 
-  private removeDissolveOverlay(title: HTMLElement): void {
-    const overlay = this.dissolveOverlays.get(title);
+  private removeDynamicOverlay(title: HTMLElement): void {
+    const overlay = this.dynamicOverlays.get(title);
     if (!overlay) return;
     overlay.dispose();
-    this.dissolveOverlays.delete(title);
+    this.dynamicOverlays.delete(title);
   }
 
   private scheduleTitleTransition(title: HTMLElement, delay: number, callback: () => void): void {
@@ -1416,7 +1807,7 @@ export class MaskEngine {
     if (!(target instanceof Element)) return;
     const control = target.closest<HTMLElement>(MENU_CONTROL_SELECTOR);
     if (!control || !row.contains(control) || (!isLikelyMenuControl(control) && !isIconOnlyMenuControl(control))) return;
-    this.rememberMenuRowFor(row);
+    this.rememberMenuRowFor(row, control);
   }
 
   private rememberMenuRowFromDocument(event: Event): void {
@@ -1424,13 +1815,26 @@ export class MaskEngine {
     const target = event.target;
     if (!(target instanceof Element)) return;
     const control = target.closest<HTMLElement>(MENU_CONTROL_SELECTOR);
-    if (!control || (!isLikelyMenuControl(control) && !isIconOnlyMenuControl(control))) return;
-    const row = this.findRowForMenuControl(control);
-    if (row) this.rememberMenuRowFor(row);
+    const isChatGpt = this.location.hostname === 'chatgpt.com' || this.location.hostname.endsWith('.chatgpt.com');
+    if (isChatGpt && this.associatedMenu?.contains(target)) return;
+    const row = control && (isLikelyMenuControl(control) || isIconOnlyMenuControl(control))
+      ? (isChatGpt ? this.findChatGptRowForMenuControl(control) : this.findRowForMenuControl(control))
+      : undefined;
+    if (row && this.rowBindings.has(row)) {
+      this.rememberMenuRowFor(row, control ?? undefined);
+    } else if (isChatGpt) {
+      this.lastMenuRow = undefined;
+      this.lastMenuTrigger = undefined;
+      this.associatedMenu = undefined;
+      this.cleanupMenuActions([]);
+    }
   }
 
-  private rememberMenuRowFor(row: HTMLElement): void {
+  private rememberMenuRowFor(row: HTMLElement, trigger?: HTMLElement): void {
+    if (this.lastMenuRow !== row || this.lastMenuTrigger !== trigger ||
+      (this.associatedMenu && !this.document.documentElement.contains(this.associatedMenu))) this.associatedMenu = undefined;
     this.lastMenuRow = row;
+    this.lastMenuTrigger = trigger;
     this.lastMenuRowAt = this.clock();
     this.queueMenuRefresh();
   }
@@ -1442,6 +1846,25 @@ export class MaskEngine {
         if (!this.stopped) this.queueRefresh();
       }, delay);
     }
+  }
+
+  private findChatGptRowForMenuControl(control: HTMLElement): HTMLElement | undefined {
+    const ancestor = control.closest<HTMLElement>(`[data-${DATA_PREFIX}-row="true"]`);
+    if (ancestor && this.rowBindings.has(ancestor)) return ancestor;
+
+    // ChatGPT may mount the overflow button only on hover, after the link was bound.
+    // Associate it only through a small shared container with one conversation link.
+    let container = control.parentElement;
+    for (let depth = 0; container && depth < 6; depth += 1, container = container.parentElement) {
+      if (container.matches('nav, aside, main, [role="navigation"], body')) break;
+      const links = container.querySelectorAll('a[href]');
+      if (links.length > 1) break;
+      if (links.length !== 1) continue;
+      const rows = Array.from(container.querySelectorAll<HTMLElement>(`[data-${DATA_PREFIX}-row="true"]`))
+        .filter((row) => this.rowBindings.has(row) && row.contains(links[0]));
+      if (rows.length === 1) return rows[0];
+    }
+    return undefined;
   }
 
   private findRowForMenuControl(control: HTMLElement): HTMLElement | undefined {
@@ -1485,13 +1908,21 @@ export class MaskEngine {
       return;
     }
 
-    const menu = this.chooseActionMenu(menus);
+    const isChatGpt = host === 'chatgpt.com' || host.endsWith('.chatgpt.com');
+    if (isChatGpt && this.associatedMenu && !this.document.documentElement.contains(this.associatedMenu)) {
+      this.lastMenuRow = undefined;
+      this.lastMenuTrigger = undefined;
+      this.associatedMenu = undefined;
+    }
+    const candidates = isChatGpt ? menus.filter((candidate) => this.isChatGptConversationMenu(candidate)) : menus;
+    const menu = this.associatedMenu && candidates.includes(this.associatedMenu)
+      ? this.associatedMenu : this.chooseActionMenu(candidates);
     if (!menu) {
       this.cleanupMenuActions([]);
       return;
     }
 
-    const row = this.resolveMenuRow(menu);
+    const row = this.resolveMenuRow(menu, isChatGpt);
     if (!row) {
       this.cleanupMenuActions(menus);
       return;
@@ -1504,6 +1935,7 @@ export class MaskEngine {
       return;
     }
 
+    if (isChatGpt) this.associatedMenu = menu;
     this.cleanupMenuActions([menu]);
     const unlocked = new Set(settings.unlockedKeysByHost[host] ?? []).has(binding.hashedKey);
     const actions = this.directMenuActions(menu);
@@ -1514,19 +1946,35 @@ export class MaskEngine {
     if (existing) {
       this.updateMenuAction(existing, row, unlocked);
       this.positionMenuAction(menu, existing);
+      this.matchMenuActionStyle(menu, existing);
       return;
     }
 
     const action = this.createMenuAction(row, unlocked);
     this.positionMenuAction(menu, action);
+    this.matchMenuActionStyle(menu, action);
   }
 
-  private resolveMenuRow(menu: HTMLElement): HTMLElement | undefined {
+  private resolveMenuRow(menu: HTMLElement, requireExplicitContext = false): HTMLElement | undefined {
     const row = this.lastMenuRow;
-    if (row && this.document.documentElement.contains(row) && this.rowBindings.has(row) && this.clock() - this.lastMenuRowAt <= MENU_CONTEXT_TTL_MS) {
+    if (row && this.document.documentElement.contains(row) && this.rowBindings.has(row) && (this.associatedMenu === menu || this.clock() - this.lastMenuRowAt <= MENU_CONTEXT_TTL_MS)) {
+      if (requireExplicitContext) {
+        if (!this.lastMenuTrigger || (this.associatedMenu && this.associatedMenu !== menu)) return undefined;
+        const controlledId = this.lastMenuTrigger.getAttribute('aria-controls');
+        if (controlledId && menu.id !== controlledId && !Array.from(menu.querySelectorAll<HTMLElement>('[id]')).some((element) => element.id === controlledId) && menu.closest('[id]')?.id !== controlledId) return undefined;
+      }
       return row;
     }
-    return this.findNearestRowForMenu(menu);
+    return requireExplicitContext ? undefined : this.findNearestRowForMenu(menu);
+  }
+
+  private isChatGptConversationMenu(menu: HTMLElement): boolean {
+    const items = Array.from(menu.querySelectorAll<HTMLElement>('[role="menuitem"], button, [role="button"]'))
+      .filter((item) => !item.closest(`[data-${DATA_PREFIX}-menu-action="true"]`))
+      .filter((item) => !menu.matches('[role="menu"]') || item.closest('[role="menu"]') === menu)
+      .map((item) => normalizeMenuText(item.textContent ?? ''));
+    return items.some((text) => /^(rename|edit name|重命名|编辑名称)$/i.test(text)) &&
+      items.some((text) => /^(delete|archive|删除|归档|存档)$/i.test(text));
   }
 
   private findNearestRowForMenu(menu: HTMLElement): HTMLElement | undefined {
@@ -1557,6 +2005,59 @@ export class MaskEngine {
     return best?.row;
   }
 
+  private matchMenuActionStyle(menu: HTMLElement, action: HTMLElement): void {
+    const reference = this.findMenuItemByText(menu, /^(rename|edit name|edit chat name|pin chat|pin to top|pin|unpin|share|重命名|编辑名称|编辑对话名|置顶|固定|取消置顶|分享)$/i);
+    const view = this.document.defaultView;
+    if (!reference || !view) return;
+    const referenceRect = reference.getBoundingClientRect();
+    if (referenceRect.width <= 0 || referenceRect.height <= 0) return;
+
+    const walker = this.document.createTreeWalker(reference, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        if (!normalizeMenuText(node.textContent ?? '') || node.parentElement?.closest('svg, [aria-hidden="true"]')) {
+          return NodeFilter.FILTER_REJECT;
+        }
+        return NodeFilter.FILTER_ACCEPT;
+      },
+    });
+    const textNode = walker.nextNode();
+    const textElement = textNode?.parentElement ?? reference;
+    const itemStyle = view.getComputedStyle(reference);
+    const textStyle = view.getComputedStyle(textElement);
+    const properties: Record<string, string> = {
+      'font-family': textStyle.fontFamily,
+      'font-size': textStyle.fontSize,
+      'font-style': textStyle.fontStyle,
+      'font-weight': textStyle.fontWeight,
+      'line-height': textStyle.lineHeight,
+      'letter-spacing': textStyle.letterSpacing,
+      color: textStyle.color,
+      radius: itemStyle.borderRadius,
+      height: `${referenceRect.height}px`,
+      padding: itemStyle.padding,
+    };
+
+    const nativeIcon = reference.querySelector<HTMLElement | SVGElement>('svg, img, [role="img"]');
+    if (nativeIcon && textNode && itemStyle.direction !== 'rtl') {
+      const iconRect = nativeIcon.getBoundingClientRect();
+      const range = this.document.createRange();
+      range.selectNodeContents(textNode);
+      const textRect = range.getBoundingClientRect();
+      const gap = textRect.left - iconRect.right;
+      const left = iconRect.left - referenceRect.left;
+      if (iconRect.width >= 10 && iconRect.width <= 32 && iconRect.height >= 10 && iconRect.height <= 32 &&
+          textRect.width > 0 && gap >= 0 && gap <= 32 && left >= 0 && left <= 48) {
+        properties['icon-size'] = `${iconRect.width}px`;
+        properties['glyph-size'] = `${Math.min(iconRect.width, iconRect.height)}px`;
+        properties.gap = `${gap}px`;
+        properties.padding = `${itemStyle.paddingTop} ${itemStyle.paddingRight} ${itemStyle.paddingBottom} ${left}px`;
+      }
+    }
+    for (const [name, value] of Object.entries(properties)) {
+      if (value) action.style.setProperty(`--chatveil-menu-${name}`, value);
+    }
+  }
+
   private createMenuAction(row: HTMLElement, unlocked: boolean): HTMLButtonElement {
     const action = this.document.createElement('button');
     action.type = 'button';
@@ -1572,7 +2073,7 @@ export class MaskEngine {
 
   private updateMenuAction(action: HTMLButtonElement, row: HTMLElement, unlocked: boolean): void {
     const icon = action.querySelector<HTMLElement>(`[data-${DATA_PREFIX}-menu-action-icon="true"]`);
-    icon?.replaceChildren(createVisibilityIcon(this.document, !unlocked));
+    icon?.replaceChildren(createTitlePinIcon(this.document, !unlocked));
     const label = action.querySelector('span:last-child');
     if (label) label.textContent = unlocked ? MENU_UNPIN_LABEL : MENU_ACTION_LABEL;
     action.onclick = (event) => {
@@ -1649,23 +2150,30 @@ export class MaskEngine {
   }
 
   private directMenuActions(menu: HTMLElement): HTMLElement[] {
-    return Array.from(menu.children).filter(
-      (child): child is HTMLElement => child instanceof HTMLElement && child.matches(`[data-${DATA_PREFIX}-menu-action="true"]`),
-    );
+    return Array.from(menu.querySelectorAll<HTMLElement>(`[data-${DATA_PREFIX}-menu-action="true"]`)).filter((action) => {
+      if (action.parentElement === menu) return true;
+      return menu.getAttribute('role') === 'menu' && action.closest('[role="menu"]') === menu &&
+        !action.parentElement?.closest('[role="menuitem"], [role="option"], button, [role="button"]');
+    });
   }
 
   private positionMenuAction(menu: HTMLElement, action: HTMLElement): void {
-    const pinItem = this.findMenuItemByText(menu, /^(pin chat|pin to top|pin|置顶|固定)$/i);
+    const pinItem = this.findMenuItemByText(menu, /^(pin chat|pin to top|pin|unpin|置顶|固定|取消置顶)$/i);
     const destructiveItem = this.findMenuItemByText(menu, /^(delete|remove|删除|移除)$/i);
     const insertBefore = pinItem ?? destructiveItem;
-    if (insertBefore?.parentElement === menu) {
-      if (action.nextElementSibling !== insertBefore) menu.insertBefore(action, insertBefore);
+    if (insertBefore?.parentElement) {
+      const parent = insertBefore.parentElement;
+      if (action.parentElement !== parent || action.nextElementSibling !== insertBefore) parent.insertBefore(action, insertBefore);
       return;
     }
     if (action.parentElement !== menu || action.nextElementSibling) menu.append(action);
   }
 
   private findMenuContainer(item: HTMLElement): HTMLElement | undefined {
+    if (this.location.hostname === 'chatgpt.com' || this.location.hostname.endsWith('.chatgpt.com')) {
+      const enclosingMenu = item.closest<HTMLElement>('[role="menu"]');
+      if (enclosingMenu && this.isEligibleMenuContainer(enclosingMenu)) return enclosingMenu;
+    }
     let current = item.parentElement;
     for (let depth = 0; current && depth < 8; depth += 1, current = current.parentElement) {
       if (current === this.document.body || current === this.document.documentElement) break;
@@ -1746,10 +2254,9 @@ export class MaskEngine {
   }
 
   private cleanupMenuActions(validMenus: HTMLElement[]): void {
-    const menus = new Set(validMenus);
+    const validActions = new Set(validMenus.flatMap((menu) => this.directMenuActions(menu)));
     for (const action of Array.from(this.document.querySelectorAll<HTMLElement>(`[data-${DATA_PREFIX}-menu-action="true"]`))) {
-      const menu = validMenus.find((candidate) => action.parentElement === candidate);
-      if (!menu || !menus.has(menu)) action.remove();
+      if (!validActions.has(action)) action.remove();
     }
     for (const menu of validMenus) {
       const actions = this.directMenuActions(menu);
@@ -1760,9 +2267,11 @@ export class MaskEngine {
   }
 
   private findMenuItemByText(menu: HTMLElement, pattern: RegExp): HTMLElement | undefined {
-    return Array.from(menu.children).find((child): child is HTMLElement => {
-      return child instanceof HTMLElement && pattern.test(normalizeMenuText(child.textContent ?? ''));
-    });
+    const candidates = menu.getAttribute('role') === 'menu'
+      ? Array.from(menu.querySelectorAll<HTMLElement>('[role="menuitem"], [role="option"], button, [role="button"]'))
+          .filter((item) => item.closest('[role="menu"]') === menu && !item.closest(`[data-${DATA_PREFIX}-menu-action="true"]`))
+      : Array.from(menu.children).filter((child): child is HTMLElement => child instanceof HTMLElement);
+    return candidates.find((child) => pattern.test(normalizeMenuText(child.textContent ?? '')));
   }
 
   private handleError(error: unknown): void {

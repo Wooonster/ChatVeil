@@ -45,7 +45,7 @@ Deliverables:
 - Content script starts the engine on supported sites.
 - Popup can enable or disable current site, show all temporarily, reset unlocks, choose mask style, and manage custom sites.
 - Popup can enable or disable Chrome sync for settings, custom hosts, and hashed unlock keys.
-- Default mask style is dynamic `Dissolve`, with `Skeleton`, `Characters`, and `Blur` retained as optional styles.
+- Default mask style is dynamic `Dissolve`, with `Constellation`, `Ripple`, `Ember`, `Skeleton`, `Characters`, and `Blur` retained as optional styles.
 
 Evidence:
 
@@ -105,9 +105,9 @@ Deliverables:
 Evidence:
 
 - `npm run lint`: passed.
-- `npm run test`: passed, 4 test files and 39 tests.
+- `npm run test`: passed, 4 test files and 42 tests.
 - `npm run typecheck`: passed.
-- `npm run test:smoke`: passed, browser-level dissolve default, current-title, hover/remask, userscript style switch, menu pin, and character-mode smoke.
+- `npm run test:smoke`: passed, browser-level dissolve default, Constellation/Ripple/Ember dynamic layers, current-title, hover/remask, userscript style switch, menu pin, and character-mode smoke.
 - `npm run build:extension`: passed, produced `.output/chrome-mv3/` and `.output/chatveil-0.1.0-chrome.zip`.
 - `npm run build:userscript`: passed, produced `dist/userscript/chatveil.user.js`.
 - Packaged MV3 manifest inspected at `.output/chrome-mv3/manifest.json`.
@@ -118,7 +118,7 @@ Status: Done
 
 Deliverables:
 
-- Default `Dissolve` mask style with animated SVG particles.
+- Default `Dissolve` mask style with dense animated SVG particles.
 - Reveal/remask state machine where particles scatter before title reveal and gather before remasking.
 - Long-list performance guard: one shared animation scheduler, offscreen pause/release, lighter idle cadence, and full-priority hover/focus transitions.
 - Reduced-motion support and fallback CSS for non-SVG or test environments.
@@ -130,5 +130,28 @@ Evidence:
 - `src/core/settings.ts`
 - `entrypoints/popup/index.html`
 - `src/userscript/main.ts`
+- `tests/engine.test.ts`
+- `scripts/smoke-playwright.mjs`
+
+## PRD-8 Creative Dynamic Mask Styles
+
+Status: Done
+
+Deliverables:
+
+- Three optional dynamic masks built on the same local SVG overlay model as Dissolve.
+- `Constellation`: denser modeled star glyphs with short varied-curve constellation-chain lines.
+- `Ripple`: sparse sine-band dash particles.
+- `Ember`: soft heat rings and small glow motes that breathe outward and settle back.
+- Shared reveal/remask behavior, viewport pausing, reduced-motion behavior, and no raw-title duplication.
+
+Evidence:
+
+- `src/core/types.ts`
+- `src/core/settings.ts`
+- `src/core/engine.ts`
+- `entrypoints/popup/index.html`
+- `src/userscript/main.ts`
+- `tests/settings.test.ts`
 - `tests/engine.test.ts`
 - `scripts/smoke-playwright.mjs`

@@ -5,7 +5,7 @@ export default defineConfig({
   manifest: {
     name: 'ChatVeil',
     short_name: 'ChatVeil',
-    version: '0.1.0',
+    version: '0.2.0',
     description:
       'Mask non-current chatbot conversation titles by default, with hover reveal and per-title unlocks.',
     permissions: ['activeTab', 'scripting', 'storage'],

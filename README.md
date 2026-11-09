@@ -10,11 +10,11 @@ The project ships the same TypeScript masking core in two forms:
 ## What It Does
 
 - Masks chat history titles without rewriting the original page text.
-- Reveals a title temporarily on hover or focus with a soft dissolve transition.
+- Reveals a title temporarily on hover or focus with a soft dynamic mask transition.
 - Keeps the active conversation title readable.
 - Adds a lightweight menu action to keep individual titles unmasked.
 - Stores per-title unlocks as hashed keys instead of raw titles.
-- Supports a default dynamic dissolve mask, plus skeleton, character, and blur modes.
+- Supports a default dynamic dissolve mask, three additional creative dynamic masks, plus skeleton, character, and blur modes.
 - Lets users enable unknown chatbot sites one origin at a time from the popup.
 
 ## Supported Sites
@@ -40,16 +40,22 @@ ChatVeil is designed to stay on the page and in the browser:
 - No raw conversation-title storage.
 - No destructive text replacement.
 
-The content script adds namespaced `data-chatveil-*` attributes plus CSS/SVG overlays to mask titles visually. The default dissolve style renders an ephemeral SVG particle layer over the existing title; it does not copy raw titles into persistent storage, `data-*` attributes, canvas buffers, or generated assets. Settings, custom hosts, temporary show-all state, and hashed unlock keys are stored through browser storage or userscript storage.
+The content script adds namespaced `data-chatveil-*` attributes plus CSS/SVG overlays to mask titles visually. Dynamic styles render ephemeral SVG particle layers over the existing title; they do not copy raw titles into persistent storage, `data-*` attributes, canvas buffers, or generated assets. Settings, custom hosts, temporary show-all state, and hashed unlock keys are stored through browser storage or userscript storage.
 
-## Dynamic Dissolve Mask
+## Dynamic Masks
 
-The default `Dissolve` style masks non-current titles as a living particle cloud. Particles lightly drift while idle, scatter before a hovered or focused title becomes readable, and gather back when the title is masked again.
+The default `Dissolve` style masks non-current titles as a lighter living particle cloud. Fine particles lightly drift while idle, scatter before a hovered or focused title becomes readable, and gather back when the title is masked again.
 
-The dissolve implementation is tuned for long sidebars:
+Additional creative dynamic styles are available from the popup and userscript panel:
 
-- One shared animation scheduler drives all dissolve titles instead of one loop per title.
-- Offscreen particle layers pause and release their SVG circle nodes.
+- `Constellation`: denser modeled star glyphs and short constellation-chain curves with varied arcs.
+- `Ripple`: quieter dash particles arranged in sparse sine-wave bands.
+- `Ember`: soft heat rings and small glow motes that breathe outward and settle back.
+
+The dynamic SVG implementation is tuned for long sidebars:
+
+- One shared animation scheduler drives all dynamic titles instead of one loop per title.
+- Offscreen particle layers pause and release their SVG nodes.
 - Idle masked titles use a lighter frame cadence.
 - Hover, focus, reveal, and remask transitions keep full motion priority.
 - `prefers-reduced-motion: reduce` falls back to a simplified low-motion state.
@@ -87,7 +93,7 @@ npm run build:userscript
 
 ## Build Artifacts
 
-- Extension zip: `.output/*-chrome.zip`
+- Extension zip for Chrome Web Store: `.output/chatveil-0.2.0-chrome.zip`
 - Unpacked extension: `.output/chrome-mv3/`
 - Userscript: `dist/userscript/chatveil.user.js`
 

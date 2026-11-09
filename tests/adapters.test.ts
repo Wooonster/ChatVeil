@@ -52,6 +52,20 @@ describe('chatbot adapters', () => {
     expect(chatGptAdapter.getStableKey(items[1], location, 1)).toContain('/c/old');
   });
 
+  it('limits ChatGPT to sidebar conversations and ignores Tailwind active variants', () => {
+    document.body.innerHTML = `
+      <nav id="stage-slideover-sidebar">
+        <a href="https://chatgpt.com/g/g-example"><span>Explore GPT</span></a>
+        <a class="group active:opacity-70" href="https://chatgpt.com/c/old"><div class="truncate">Private title</div></a>
+        <a href="https://chatgpt.com/g/g-project/c/project-chat"><div>Project conversation</div></a>
+      </nav>
+      <main><a href="https://chatgpt.com/c/shared"><span>Shared link in response</span></a></main>
+    `;
+    const items = chatGptAdapter.findHistoryItems(document);
+    expect(items.map((item) => item.title.textContent?.trim())).toEqual(['Private title', 'Project conversation']);
+    expect(chatGptAdapter.isCurrent(items[0], new URL('https://chatgpt.com/c/current') as unknown as Location)).toBe(false);
+  });
+
   it('extracts Claude, Qwen, and generic sidebar rows conservatively', () => {
     document.body.innerHTML = `
       <aside>
